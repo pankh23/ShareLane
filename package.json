@@ -1,0 +1,18 @@
+{
+  "name": "campus-ride-sharing",
+  "version": "1.0.0",
+  "description": "A full-stack campus ride sharing web application",
+  "main": "server.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd backend && npm run dev",
+    "client": "cd frontend && npm start",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  },
+  "keywords": ["ride-sharing", "campus", "react", "nodejs", "mongodb"],
+  "author": "ShareLane Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^7.6.0"
+  }
+}
