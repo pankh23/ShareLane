@@ -45,6 +45,7 @@ const StaffDashboard = () => {
   const [recentRides, setRecentRides] = useState([]);
   const [recentBookings, setRecentBookings] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [hasEverCreatedRides, setHasEverCreatedRides] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -54,10 +55,20 @@ const StaffDashboard = () => {
     try {
       setLoading(true);
       
-      // Fetch rides
+      // Fetch recent rides
       const ridesResponse = await ridesAPI.getMyRides({ limit: 5 });
       const rides = ridesResponse.data.data.rides;
       setRecentRides(rides);
+
+      // Check if staff member has ever created rides (including historical ones)
+      const historyResponse = await ridesAPI.getMyRideHistory({ limit: 1 });
+      const hasEverCreatedRides = historyResponse.data.data.pagination.totalRides > 0;
+      console.log('Ride history check:', {
+        totalRides: historyResponse.data.data.pagination.totalRides,
+        hasEverCreatedRides,
+        rides: historyResponse.data.data.rides
+      });
+      setHasEverCreatedRides(hasEverCreatedRides);
 
       // Calculate stats
       const totalRides = rides.length;
@@ -266,14 +277,14 @@ const StaffDashboard = () => {
                   <Box sx={{ textAlign: 'center', py: 4 }}>
                     <CarIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
                     <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                      No rides created yet
+                      {hasEverCreatedRides ? 'No recent rides' : 'No rides created yet'}
                     </Typography>
                     <Button
                       variant="contained"
                       startIcon={<AddIcon />}
                       onClick={() => navigate('/staff/rides/create')}
                     >
-                      Create Your First Ride
+                      {hasEverCreatedRides ? 'Create New Ride' : 'Create Your First Ride'}
                     </Button>
                   </Box>
                 ) : (

@@ -40,6 +40,7 @@ const MyRidesPage = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [activeRides, setActiveRides] = useState([]);
   const [rideHistory, setRideHistory] = useState([]);
+  const [hasEverCreatedRides, setHasEverCreatedRides] = useState(false);
   const [pagination, setPagination] = useState({
     active: { currentPage: 1, totalPages: 1, totalRides: 0 },
     history: { currentPage: 1, totalPages: 1, totalRides: 0 }
@@ -76,6 +77,16 @@ const MyRidesPage = () => {
           history: response.data.data.pagination
         }));
       }
+
+      // Check if staff member has ever created rides (using history tab data)
+      const historyResponse = await ridesAPI.getMyRideHistory({ limit: 1 });
+      const hasEverCreatedRides = historyResponse.data.data.pagination.totalRides > 0;
+      console.log('MyRidesPage - Ride history check:', {
+        totalRides: historyResponse.data.data.pagination.totalRides,
+        hasEverCreatedRides,
+        rides: historyResponse.data.data.rides
+      });
+      setHasEverCreatedRides(hasEverCreatedRides);
     } catch (error) {
       console.error('Error fetching rides:', error);
       toast.error('Failed to load rides');
@@ -163,7 +174,7 @@ const MyRidesPage = () => {
               startIcon={<AddIcon />}
               onClick={() => navigate('/staff/rides/create')}
             >
-              Create Your First Ride
+              {hasEverCreatedRides ? 'Create New Ride' : 'Create Your First Ride'}
             </Button>
           )}
         </Box>

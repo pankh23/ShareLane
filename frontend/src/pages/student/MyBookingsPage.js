@@ -61,6 +61,13 @@ const MyBookingsPage = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalBookings, setTotalBookings] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({
+    all: 0,
+    pending: 0,
+    confirmed: 0,
+    completed: 0,
+    cancelled: 0
+  });
   const [statusFilter, setStatusFilter] = useState('all');
   const [cancelDialog, setCancelDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -69,6 +76,9 @@ const MyBookingsPage = () => {
 
   useEffect(() => {
     fetchBookings();
+    if (statusFilter === 'all') {
+      fetchStatusCounts();
+    }
   }, [page, statusFilter]);
 
   const fetchBookings = async () => {
@@ -96,6 +106,28 @@ const MyBookingsPage = () => {
     }
   };
 
+  const fetchStatusCounts = async () => {
+    try {
+      const statuses = ['pending', 'confirmed', 'completed', 'cancelled'];
+      const counts = { all: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
+      
+      // Fetch all bookings to get accurate counts
+      const response = await bookingsAPI.getMyBookings({ page: 1, limit: 1000 });
+      const allBookings = response.data.data.bookings;
+      
+      counts.all = allBookings.length;
+      allBookings.forEach(booking => {
+        if (counts.hasOwnProperty(booking.status)) {
+          counts[booking.status]++;
+        }
+      });
+      
+      setStatusCounts(counts);
+    } catch (error) {
+      console.error('Failed to fetch status counts:', error);
+    }
+  };
+
   const handleCancelBooking = (booking) => {
     setSelectedBooking(booking);
     setCancelDialog(true);
@@ -106,15 +138,16 @@ const MyBookingsPage = () => {
 
     try {
       setCancelling(true);
-      await bookingsAPI.cancelBooking(selectedBooking._id, {
-        cancellationReason: cancellationReason || 'No reason provided'
-      });
+      await bookingsAPI.cancelBooking(selectedBooking._id, cancellationReason || 'No reason provided');
 
       toast.success('Booking cancelled successfully');
       setCancelDialog(false);
       setCancellationReason('');
       setSelectedBooking(null);
       fetchBookings();
+      if (statusFilter === 'all') {
+        fetchStatusCounts();
+      }
     } catch (error) {
       const message = error.response?.data?.message || 'Failed to cancel booking';
       toast.error(message);
@@ -194,11 +227,11 @@ const MyBookingsPage = () => {
   };
 
   const statusTabs = [
-    { value: 'all', label: 'All', count: totalBookings },
-    { value: 'pending', label: 'Pending', count: bookings.filter(b => b.status === 'pending').length },
-    { value: 'confirmed', label: 'Confirmed', count: bookings.filter(b => b.status === 'confirmed').length },
-    { value: 'completed', label: 'Completed', count: bookings.filter(b => b.status === 'completed').length },
-    { value: 'cancelled', label: 'Cancelled', count: bookings.filter(b => b.status === 'cancelled').length }
+    { value: 'all', label: 'All', count: statusCounts.all },
+    { value: 'pending', label: 'Pending', count: statusCounts.pending },
+    { value: 'confirmed', label: 'Confirmed', count: statusCounts.confirmed },
+    { value: 'completed', label: 'Completed', count: statusCounts.completed },
+    { value: 'cancelled', label: 'Cancelled', count: statusCounts.cancelled }
   ];
 
   return (

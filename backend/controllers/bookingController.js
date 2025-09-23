@@ -138,17 +138,21 @@ const getMyBookings = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
-    const total = await Booking.countDocuments(filter);
+    // Filter out bookings where rideId is null (ride was deleted)
+    const validBookings = bookings.filter(booking => booking.rideId !== null);
+
+    // Count only valid bookings (with valid rideId)
+    const total = await Booking.countDocuments({ ...filter, rideId: { $ne: null } });
 
     res.json({
       success: true,
       data: {
-        bookings,
+        bookings: validBookings,
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(total / parseInt(limit)),
           totalBookings: total,
-          hasNext: skip + bookings.length < total,
+          hasNext: skip + validBookings.length < total,
           hasPrev: parseInt(page) > 1
         }
       }
@@ -337,7 +341,7 @@ const cancelBooking = async (req, res) => {
 
     // Refund available seats
     const ride = await Ride.findById(booking.rideId);
-    ride.availableSeats += booking.seatsBooked;
+    ride.availableSeats = Math.min(ride.availableSeats + booking.seatsBooked, ride.totalSeats);
     await ride.save();
 
     await booking.save();

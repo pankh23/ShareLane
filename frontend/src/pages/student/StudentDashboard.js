@@ -57,6 +57,7 @@ const StudentDashboard = () => {
       // Fetch user's bookings
       const bookingsResponse = await bookingsAPI.getMyBookings({ limit: 10 });
       const bookings = bookingsResponse.data.data.bookings;
+      console.log('Bookings data:', bookings);
       setRecentBookings(bookings.slice(0, 5));
 
       // Calculate stats
@@ -80,6 +81,7 @@ const StudentDashboard = () => {
 
       // Fetch available rides
       const ridesResponse = await ridesAPI.getRides({ limit: 5 });
+      console.log('Available rides data:', ridesResponse.data.data.rides);
       setAvailableRides(ridesResponse.data.data.rides);
 
       // Fetch notifications
@@ -279,7 +281,9 @@ const StudentDashboard = () => {
                   </Box>
                 ) : (
                   <List>
-                    {recentBookings.map((booking, index) => (
+                    {recentBookings
+                      .filter(booking => booking.rideId) // Filter out bookings with null rideId
+                      .map((booking, index) => (
                       <React.Fragment key={booking._id}>
                         <ListItem
                           sx={{ cursor: 'pointer' }}
@@ -314,7 +318,7 @@ const StudentDashboard = () => {
                             }
                           />
                         </ListItem>
-                        {index < recentBookings.length - 1 && <Divider />}
+                        {index < recentBookings.filter(booking => booking.rideId).length - 1 && <Divider />}
                       </React.Fragment>
                     ))}
                   </List>
@@ -348,7 +352,9 @@ const StudentDashboard = () => {
                   </Box>
                 ) : (
                   <List>
-                    {availableRides.map((ride, index) => (
+                    {availableRides
+                      .filter(ride => ride && ride.pickupLocation && ride.destination) // Filter out null/invalid rides
+                      .map((ride, index) => (
                       <React.Fragment key={ride._id}>
                         <ListItem
                           sx={{ cursor: 'pointer' }}
@@ -356,7 +362,7 @@ const StudentDashboard = () => {
                         >
                           <ListItemIcon>
                             <Avatar sx={{ bgcolor: 'primary.main' }}>
-                              {ride.providerId?.name?.charAt(0)}
+                              {ride.providerId?.name?.charAt(0) || '?'}
                             </Avatar>
                           </ListItemIcon>
                           <ListItemText
@@ -364,7 +370,7 @@ const StudentDashboard = () => {
                             secondary={
                               <span>
                                 <Typography variant="body2" color="text.secondary" component="span">
-                                  {ride.providerId?.name} • {new Date(ride.date).toLocaleDateString()} at {ride.time}
+                                  {ride.providerId?.name || 'Unknown Driver'} • {new Date(ride.date).toLocaleDateString()} at {ride.time}
                                 </Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }} component="span">
                                   <Chip
@@ -380,7 +386,7 @@ const StudentDashboard = () => {
                             }
                           />
                         </ListItem>
-                        {index < availableRides.length - 1 && <Divider />}
+                        {index < availableRides.filter(ride => ride && ride.pickupLocation && ride.destination).length - 1 && <Divider />}
                       </React.Fragment>
                     ))}
                   </List>

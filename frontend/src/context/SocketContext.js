@@ -14,7 +14,10 @@ export const SocketProvider = ({ children }) => {
       // Only create socket if one doesn't exist
       if (!socket) {
         // Initialize socket connection
-        const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:5001', {
+        const socketUrl = process.env.REACT_APP_API_URL ? 
+          process.env.REACT_APP_API_URL.replace('/api', '') : 
+          'http://localhost:5001';
+        const newSocket = io(socketUrl, {
           auth: {
             token: localStorage.getItem('token')
           }

@@ -9,7 +9,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api
 const initialState = {
   user: null,
   token: localStorage.getItem('token'),
-  isAuthenticated: !!localStorage.getItem('token'),
+  isAuthenticated: false, // Start as false, will be set to true only after successful user load
   loading: true,
   error: null
 };
@@ -58,7 +58,7 @@ const authReducer = (state, action) => {
       return {
         ...state,
         user: action.payload,
-        isAuthenticated: true,
+        isAuthenticated: !!action.payload, // Only true if user data exists
         loading: false,
         error: null
       };
@@ -147,7 +147,7 @@ export const AuthProvider = ({ children }) => {
     } else {
       dispatch({ type: AUTH_ACTIONS.LOAD_USER_SUCCESS, payload: null });
     }
-  }, []); // Only run once on mount
+  }, [loadUser]); // Include loadUser in dependencies
 
   // Login function
   const login = async (email, password) => {

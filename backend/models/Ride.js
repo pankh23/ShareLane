@@ -20,13 +20,7 @@ const rideSchema = new mongoose.Schema({
   },
   date: {
     type: Date,
-    required: [true, 'Date is required'],
-    validate: {
-      validator: function(date) {
-        return date > new Date();
-      },
-      message: 'Ride date must be in the future'
-    }
+    required: [true, 'Date is required']
   },
   time: {
     type: String,
@@ -109,6 +103,22 @@ rideSchema.pre('save', function(next) {
   }
 });
 
+// Validate that the combined date and time is in the future
+rideSchema.pre('save', function(next) {
+  if (this.isModified('date') || this.isModified('time') || this.isNew) {
+    const rideDateTime = this.getRideDateTime();
+    const now = new Date();
+    
+    if (rideDateTime <= now) {
+      next(new Error('Ride must be scheduled in the future'));
+    } else {
+      next();
+    }
+  } else {
+    next();
+  }
+});
+
 // Pre-save hook to automatically mark rides as expired
 rideSchema.pre('save', function(next) {
   if (this.isModified('date') || this.isModified('time') || this.isNew) {
@@ -144,6 +154,29 @@ rideSchema.statics.markExpiredRides = async function() {
   }
   
   return expiredRideIds.length;
+};
+
+// Static method to mark expired rides as completed after 24 hours
+rideSchema.statics.markExpiredRidesAsCompleted = async function() {
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  
+  // Find rides that expired more than 24 hours ago
+  const expiredRides = await this.find({ 
+    status: 'expired',
+    date: { $lt: oneDayAgo }
+  });
+  
+  if (expiredRides.length > 0) {
+    await this.updateMany(
+      { _id: { $in: expiredRides.map(ride => ride._id) } },
+      { status: 'completed' }
+    );
+    
+    console.log(`Marked ${expiredRides.length} expired rides as completed`);
+  }
+  
+  return expiredRides.length;
 };
 
 // Index for efficient queries

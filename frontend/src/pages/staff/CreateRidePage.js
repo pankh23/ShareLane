@@ -81,17 +81,19 @@ const CreateRidePage = () => {
     setError('');
 
     try {
-      // Format date to ensure it's in the future
+      // Format date and time to ensure it's in the future
       const rideDate = new Date(data.date);
-      rideDate.setHours(0, 0, 0, 0); // Set to start of day
+      const [hours, minutes] = data.time.split(':');
+      rideDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
       
-      // Ensure the date is at least tomorrow
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(0, 0, 0, 0);
+      // Check if the ride is in the future (at least 30 minutes from now)
+      const now = new Date();
+      const minTime = new Date(now.getTime() + 30 * 60000); // 30 minutes from now
       
-      if (rideDate < tomorrow) {
-        rideDate.setDate(tomorrow.getDate());
+      if (rideDate < minTime) {
+        setError('Ride must be scheduled at least 30 minutes in the future');
+        setLoading(false);
+        return;
       }
 
       const rideData = {

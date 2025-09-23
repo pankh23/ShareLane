@@ -26,7 +26,6 @@ import {
   Rating
 } from '@mui/material';
 import {
-  Search as SearchIcon,
   LocationOn as LocationIcon,
   CalendarToday as CalendarIcon,
   People as PeopleIcon,
@@ -51,16 +50,14 @@ const SearchRidesPage = () => {
 
   const {
     register,
-    handleSubmit,
     setValue,
     watch,
-    reset,
-    formState: { errors }
+    reset
   } = useForm({
     defaultValues: {
       pickupLocation: '',
       destination: '',
-      date: new Date().toISOString().split('T')[0],
+      date: '',
       vehicleType: '',
       maxPrice: '',
       sortBy: 'date'
@@ -84,6 +81,7 @@ const SearchRidesPage = () => {
         ...searchParams
       };
 
+      console.log('Fetching rides with params:', params);
       const response = await ridesAPI.getRides(params);
       const { rides: fetchedRides, pagination } = response.data.data;
       setRides(fetchedRides);
@@ -98,26 +96,6 @@ const SearchRidesPage = () => {
     }
   };
 
-  const onSubmit = (data) => {
-    const newSearchParams = {
-      pickup: data.pickupLocation || undefined,
-      destination: data.destination || undefined,
-      date: data.date ? new Date(data.date).toISOString().split('T')[0] : undefined,
-      vehicleType: data.vehicleType || undefined,
-      maxPrice: data.maxPrice || undefined,
-      sortBy: data.sortBy || 'date'
-    };
-
-    // Remove undefined values
-    Object.keys(newSearchParams).forEach(key => {
-      if (newSearchParams[key] === undefined || newSearchParams[key] === '') {
-        delete newSearchParams[key];
-      }
-    });
-
-    setPage(1);
-    setSearchParams(newSearchParams);
-  };
 
   const handleClearFilters = () => {
     reset();
@@ -136,6 +114,37 @@ const SearchRidesPage = () => {
       ...searchParams,
       [field === 'pickupLocation' ? 'pickup' : 'destination']: value
     };
+    setPage(1);
+    setSearchParams(newSearchParams);
+  };
+
+  const handleApplyFilters = () => {
+    const currentValues = watchedValues;
+    console.log('Applying filters with values:', currentValues);
+    
+    const newSearchParams = {
+      pickup: currentValues.pickupLocation || undefined,
+      destination: currentValues.destination || undefined,
+      date: currentValues.date && currentValues.date.trim() !== '' ? new Date(currentValues.date).toISOString().split('T')[0] : undefined,
+      vehicleType: currentValues.vehicleType || undefined,
+      maxPrice: currentValues.maxPrice || undefined,
+      sortBy: currentValues.sortBy || 'date',
+      sortOrder: currentValues.sortBy === '-price' ? 'desc' : 'asc'
+    };
+
+    // Clean up sortBy value
+    if (newSearchParams.sortBy === '-price') {
+      newSearchParams.sortBy = 'price';
+    }
+
+    // Remove undefined values
+    Object.keys(newSearchParams).forEach(key => {
+      if (newSearchParams[key] === undefined || newSearchParams[key] === '') {
+        delete newSearchParams[key];
+      }
+    });
+
+    console.log('Applied filters - New search params:', newSearchParams);
     setPage(1);
     setSearchParams(newSearchParams);
   };
@@ -189,7 +198,7 @@ const SearchRidesPage = () => {
 
           {/* Search Form */}
           <Paper elevation={2} sx={{ p: 3, mb: 4, borderRadius: 3 }}>
-            <form onSubmit={handleSubmit(onSubmit)}>
+            <form onSubmit={(e) => { e.preventDefault(); }}>
               <Grid container spacing={3}>
                 <Grid item xs={12} md={4}>
                   <TextField
@@ -332,28 +341,30 @@ const SearchRidesPage = () => {
               <Box sx={{ mt: 3, display: 'flex', gap: 2, justifyContent: 'space-between' }}>
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   <Button
-                    type="submit"
-                    variant="contained"
-                    startIcon={<SearchIcon />}
-                    disabled={loading}
-                  >
-                    {loading ? 'Searching...' : 'Search Rides'}
-                  </Button>
-                  <Button
                     variant="outlined"
                     onClick={() => setShowFilters(!showFilters)}
                     startIcon={<FilterIcon />}
                   >
                     {showFilters ? 'Hide Filters' : 'Show Filters'}
                   </Button>
-                  <Button
-                    variant="outlined"
-                    onClick={handleClearFilters}
-                    startIcon={<ClearIcon />}
-                  >
-                    Clear
-                  </Button>
+                  {showFilters && (
+                    <Button
+                      variant="contained"
+                      onClick={handleApplyFilters}
+                      startIcon={<FilterIcon />}
+                      disabled={loading}
+                    >
+                      {loading ? 'Applying...' : 'Apply Filters'}
+                    </Button>
+                  )}
                 </Box>
+                <Button
+                  variant="outlined"
+                  onClick={handleClearFilters}
+                  startIcon={<ClearIcon />}
+                >
+                  Clear
+                </Button>
               </Box>
             </form>
           </Paper>
@@ -380,9 +391,21 @@ const SearchRidesPage = () => {
               <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
                 No rides found
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Try adjusting your search criteria or check back later
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {Object.keys(searchParams).length > 0 
+                  ? 'No rides match your current filters. Try adjusting your search criteria or explore other options.'
+                  : 'Try adjusting your search criteria or check back later'
+                }
               </Typography>
+              {Object.keys(searchParams).length > 0 && (
+                <Button
+                  variant="outlined"
+                  onClick={handleClearFilters}
+                  startIcon={<ClearIcon />}
+                >
+                  Clear All Filters
+                </Button>
+              )}
             </Paper>
           ) : (
             <>

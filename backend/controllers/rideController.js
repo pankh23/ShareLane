@@ -11,6 +11,8 @@ const getRides = async (req, res) => {
       pickup,
       destination,
       date,
+      vehicleType,
+      maxPrice,
       page = 1,
       limit = 10,
       sortBy = 'date',
@@ -20,9 +22,9 @@ const getRides = async (req, res) => {
     // First, mark any expired rides
     await Ride.markExpiredRides();
 
-    // Build filter object - exclude expired rides from available rides
+    // Build filter object - include active and recently expired rides
     const filter = { 
-      status: { $in: ['active', 'completed'] } // Include completed but not expired
+      status: { $in: ['active', 'completed', 'expired'] } // Include all non-cancelled rides
     };
     
     if (pickup) {
@@ -40,9 +42,23 @@ const getRides = async (req, res) => {
       filter.date = { $gte: startDate, $lt: endDate };
     }
 
+    if (vehicleType) {
+      filter.vehicleType = vehicleType;
+    }
+
+    if (maxPrice) {
+      filter.pricePerSeat = { $lte: parseFloat(maxPrice) };
+    }
+
     // Build sort object
     const sort = {};
-    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    if (sortBy === 'price') {
+      sort.pricePerSeat = sortOrder === 'desc' ? -1 : 1;
+    } else if (sortBy === 'seats') {
+      sort.availableSeats = sortOrder === 'desc' ? -1 : 1;
+    } else {
+      sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    }
 
     // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -203,7 +219,7 @@ const updateRide = async (req, res) => {
   }
 };
 
-// @desc    Delete ride
+// @desc    Delete ride (soft delete - mark as cancelled)
 // @route   DELETE /api/rides/:id
 // @access  Private (Staff only - own rides)
 const deleteRide = async (req, res) => {
@@ -238,11 +254,13 @@ const deleteRide = async (req, res) => {
       });
     }
 
-    await Ride.findByIdAndDelete(req.params.id);
+    // Soft delete - mark as cancelled instead of actually deleting
+    ride.status = 'cancelled';
+    await ride.save();
 
     res.json({
       success: true,
-      message: 'Ride deleted successfully'
+      message: 'Ride cancelled successfully'
     });
   } catch (error) {
     console.error('Delete ride error:', error);
@@ -260,8 +278,9 @@ const getMyRides = async (req, res) => {
   try {
     const { page = 1, limit = 10, status, includeExpired = false } = req.query;
 
-    // First, mark any expired rides
+    // First, mark any expired rides and then mark old expired rides as completed
     await Ride.markExpiredRides();
+    await Ride.markExpiredRidesAsCompleted();
 
     const filter = { providerId: req.user._id };
     
@@ -315,8 +334,9 @@ const getMyRideHistory = async (req, res) => {
   try {
     const { page = 1, limit = 10, status } = req.query;
 
-    // First, mark any expired rides
+    // First, mark any expired rides and then mark old expired rides as completed
     await Ride.markExpiredRides();
+    await Ride.markExpiredRidesAsCompleted();
 
     const filter = { providerId: req.user._id };
     
