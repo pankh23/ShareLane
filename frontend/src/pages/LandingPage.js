@@ -23,7 +23,11 @@ import {
   Speed as SpeedIcon,
   Star as StarIcon,
   ArrowForward as ArrowForwardIcon,
-  CheckCircle as CheckIcon
+  CheckCircle as CheckIcon,
+  School as SchoolIcon,
+  TwoWheeler as BikeIcon,
+  DirectionsBus as BusIcon,
+  ElectricScooter as ScooterIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 
@@ -42,7 +46,7 @@ const LandingPage = () => {
     {
       icon: <PaymentIcon sx={{ fontSize: 40, color: 'primary.main' }} />,
       title: 'Secure Payments',
-      description: 'Safe and secure payment processing with Stripe. No need to carry cash or worry about splitting costs.'
+      description: 'Payment processing feature is currently under development. Coming soon!'
     },
     {
       icon: <SecurityIcon sx={{ fontSize: 40, color: 'primary.main' }} />,
@@ -66,12 +70,6 @@ const LandingPage = () => {
     }
   ];
 
-  const stats = [
-    { number: '500+', label: 'Active Users' },
-    { number: '1,200+', label: 'Rides Completed' },
-    { number: '4.8/5', label: 'Average Rating' },
-    { number: '95%', label: 'On-time Rate' }
-  ];
 
   const testimonials = [
     {
@@ -114,6 +112,35 @@ const LandingPage = () => {
 
   return (
     <Box>
+      <style>
+        {`
+          @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+          }
+          
+          @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+          }
+          
+          @keyframes bounce {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+          }
+          
+          @keyframes wiggle {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(2deg); }
+            75% { transform: rotate(-2deg); }
+          }
+          
+          @keyframes shimmer {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+          }
+        `}
+      </style>
       {/* Hero Section */}
       <Box
         sx={{
@@ -128,6 +155,21 @@ const LandingPage = () => {
           <Grid container spacing={4} alignItems="center">
             <Grid item xs={12} md={6}>
               <Box>
+                <Typography
+                  variant="h4"
+                  component="div"
+                  sx={{ 
+                    fontWeight: 'bold', 
+                    mb: 1, 
+                    background: 'linear-gradient(45deg, #fff 30%, #e3f2fd 90%)',
+                    backgroundClip: 'text',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  ShareLane
+                </Typography>
                 <Typography
                   variant={isMobile ? 'h3' : 'h2'}
                   component="h1"
@@ -187,33 +229,273 @@ const LandingPage = () => {
               </Box>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Box sx={{ textAlign: 'center' }}>
-                <CarIcon sx={{ fontSize: 200, opacity: 0.3 }} />
+              <Box sx={{ 
+                textAlign: 'center', 
+                position: 'relative',
+                height: 300,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                {/* Organized vehicle grid layout with animations */}
+                <Box sx={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(3, 1fr)', 
+                  gap: 3,
+                  width: '100%',
+                  maxWidth: 400,
+                  alignItems: 'center',
+                  justifyItems: 'center'
+                }}>
+                  {/* Top row */}
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    width: 80,
+                    height: 80,
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    borderRadius: '50%',
+                    backdropFilter: 'blur(10px)',
+                    border: '2px solid rgba(255,255,255,0.2)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    animation: 'float 3s ease-in-out infinite',
+                    '&:hover': {
+                      transform: 'scale(1.1) rotate(5deg)',
+                      backgroundColor: 'rgba(255,255,255,0.2)',
+                      boxShadow: '0 8px 32px rgba(255,255,255,0.3)',
+                      transition: 'all 0.3s ease'
+                    },
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: '-50%',
+                      left: '-50%',
+                      width: '200%',
+                      height: '200%',
+                      background: 'linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent)',
+                      animation: 'shimmer 2s infinite',
+                      transform: 'rotate(45deg)'
+                    }
+                  }}>
+                    <BusIcon sx={{ 
+                      fontSize: 40, 
+                      opacity: 0.9, 
+                      color: 'white',
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+                      animation: 'bounce 2s ease-in-out infinite'
+                    }} />
+                  </Box>
+                  
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    width: 100,
+                    height: 100,
+                    backgroundColor: 'rgba(255,255,255,0.15)',
+                    borderRadius: '50%',
+                    backdropFilter: 'blur(10px)',
+                    border: '2px solid rgba(255,255,255,0.3)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    animation: 'pulse 2s ease-in-out infinite',
+                    '&:hover': {
+                      transform: 'scale(1.15) rotate(-5deg)',
+                      backgroundColor: 'rgba(255,255,255,0.25)',
+                      boxShadow: '0 12px 40px rgba(255,255,255,0.4)',
+                      transition: 'all 0.3s ease'
+                    },
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: '-50%',
+                      left: '-50%',
+                      width: '200%',
+                      height: '200%',
+                      background: 'linear-gradient(45deg, transparent, rgba(255,255,255,0.15), transparent)',
+                      animation: 'shimmer 2.5s infinite',
+                      transform: 'rotate(45deg)'
+                    }
+                  }}>
+                    <CarIcon sx={{ 
+                      fontSize: 50, 
+                      opacity: 1, 
+                      color: 'white',
+                      filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.3))',
+                      animation: 'wiggle 1.5s ease-in-out infinite'
+                    }} />
+                  </Box>
+                  
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    width: 80,
+                    height: 80,
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    borderRadius: '50%',
+                    backdropFilter: 'blur(10px)',
+                    border: '2px solid rgba(255,255,255,0.2)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    animation: 'float 3.5s ease-in-out infinite',
+                    '&:hover': {
+                      transform: 'scale(1.1) rotate(-3deg)',
+                      backgroundColor: 'rgba(255,255,255,0.2)',
+                      boxShadow: '0 8px 32px rgba(255,255,255,0.3)',
+                      transition: 'all 0.3s ease'
+                    },
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: '-50%',
+                      left: '-50%',
+                      width: '200%',
+                      height: '200%',
+                      background: 'linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent)',
+                      animation: 'shimmer 1.8s infinite',
+                      transform: 'rotate(45deg)'
+                    }
+                  }}>
+                    <ScooterIcon sx={{ 
+                      fontSize: 40, 
+                      opacity: 0.9, 
+                      color: 'white',
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+                      animation: 'bounce 2.2s ease-in-out infinite'
+                    }} />
+                  </Box>
+                  
+                  {/* Bottom row */}
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    width: 80,
+                    height: 80,
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    borderRadius: '50%',
+                    backdropFilter: 'blur(10px)',
+                    border: '2px solid rgba(255,255,255,0.2)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    animation: 'float 2.8s ease-in-out infinite',
+                    '&:hover': {
+                      transform: 'scale(1.1) rotate(4deg)',
+                      backgroundColor: 'rgba(255,255,255,0.2)',
+                      boxShadow: '0 8px 32px rgba(255,255,255,0.3)',
+                      transition: 'all 0.3s ease'
+                    },
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: '-50%',
+                      left: '-50%',
+                      width: '200%',
+                      height: '200%',
+                      background: 'linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent)',
+                      animation: 'shimmer 2.2s infinite',
+                      transform: 'rotate(45deg)'
+                    }
+                  }}>
+                    <BikeIcon sx={{ 
+                      fontSize: 40, 
+                      opacity: 0.9, 
+                      color: 'white',
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+                      animation: 'bounce 1.8s ease-in-out infinite'
+                    }} />
+                  </Box>
+                  
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    width: 100,
+                    height: 100,
+                    backgroundColor: 'rgba(255,255,255,0.15)',
+                    borderRadius: '50%',
+                    backdropFilter: 'blur(10px)',
+                    border: '2px solid rgba(255,255,255,0.3)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    animation: 'pulse 2.3s ease-in-out infinite',
+                    '&:hover': {
+                      transform: 'scale(1.15) rotate(3deg)',
+                      backgroundColor: 'rgba(255,255,255,0.25)',
+                      boxShadow: '0 12px 40px rgba(255,255,255,0.4)',
+                      transition: 'all 0.3s ease'
+                    },
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: '-50%',
+                      left: '-50%',
+                      width: '200%',
+                      height: '200%',
+                      background: 'linear-gradient(45deg, transparent, rgba(255,255,255,0.15), transparent)',
+                      animation: 'shimmer 2.8s infinite',
+                      transform: 'rotate(45deg)'
+                    }
+                  }}>
+                    <CarIcon sx={{ 
+                      fontSize: 50, 
+                      opacity: 1, 
+                      color: 'white',
+                      filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.3))',
+                      animation: 'wiggle 1.7s ease-in-out infinite'
+                    }} />
+                  </Box>
+                  
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    width: 80,
+                    height: 80,
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    borderRadius: '50%',
+                    backdropFilter: 'blur(10px)',
+                    border: '2px solid rgba(255,255,255,0.2)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    animation: 'float 3.2s ease-in-out infinite',
+                    '&:hover': {
+                      transform: 'scale(1.1) rotate(-4deg)',
+                      backgroundColor: 'rgba(255,255,255,0.2)',
+                      boxShadow: '0 8px 32px rgba(255,255,255,0.3)',
+                      transition: 'all 0.3s ease'
+                    },
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: '-50%',
+                      left: '-50%',
+                      width: '200%',
+                      height: '200%',
+                      background: 'linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent)',
+                      animation: 'shimmer 2.4s infinite',
+                      transform: 'rotate(45deg)'
+                    }
+                  }}>
+                    <BusIcon sx={{ 
+                      fontSize: 40, 
+                      opacity: 0.9, 
+                      color: 'white',
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+                      animation: 'bounce 2.5s ease-in-out infinite'
+                    }} />
+                  </Box>
+                </Box>
               </Box>
             </Grid>
           </Grid>
         </Container>
       </Box>
 
-      {/* Stats Section */}
-      <Box sx={{ py: 6, backgroundColor: 'background.paper' }}>
-        <Container maxWidth="lg">
-          <Grid container spacing={4}>
-            {stats.map((stat, index) => (
-              <Grid item xs={6} md={3} key={index}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="h3" component="div" sx={{ fontWeight: 'bold', color: 'primary.main', mb: 1 }}>
-                    {stat.number}
-                  </Typography>
-                  <Typography variant="body1" color="text.secondary">
-                    {stat.label}
-                  </Typography>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
 
       {/* Features Section */}
       <Box sx={{ py: 8, backgroundColor: 'background.default' }}>
@@ -344,9 +626,6 @@ const LandingPage = () => {
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Campus Ride Sharing Platform
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              © 2024 ShareLane. All rights reserved.
             </Typography>
           </Box>
         </Container>

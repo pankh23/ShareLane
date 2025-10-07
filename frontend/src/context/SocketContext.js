@@ -26,10 +26,12 @@ export const SocketProvider = ({ children }) => {
         // Connection event handlers
         newSocket.on('connect', () => {
           console.log('Socket connected:', newSocket.id);
+          console.log('User ID for socket room:', user._id);
           setIsConnected(true);
           
           // Join user to their personal room
-          newSocket.emit('join', user.id);
+          newSocket.emit('join', user._id);
+          console.log('Emitted join event for user:', user._id);
         });
 
         newSocket.on('disconnect', () => {
@@ -52,7 +54,7 @@ export const SocketProvider = ({ children }) => {
         setIsConnected(false);
       }
     }
-  }, [isAuthenticated, user?.id]); // Only depend on user.id, not the entire user object
+  }, [isAuthenticated, user?._id]); // Only depend on user._id, not the entire user object
 
   // Cleanup effect
   useEffect(() => {
@@ -103,6 +105,42 @@ export const SocketProvider = ({ children }) => {
   const onReviewCreated = (callback) => {
     if (socket) {
       socket.on('review_created', callback);
+    }
+  };
+
+  const onRideCancelled = (callback) => {
+    if (socket) {
+      socket.on('ride_cancelled', callback);
+    }
+  };
+
+  const onNewBooking = (callback) => {
+    if (socket && isConnected) {
+      console.log('Setting up new_booking listener on socket:', socket.id);
+      socket.on('new_booking', (data) => {
+        console.log('Received new_booking event:', data);
+        callback(data);
+      });
+    } else {
+      console.log('Socket not connected, cannot set up new_booking listener');
+    }
+  };
+
+  const onBookingStatusUpdated = (callback) => {
+    if (socket) {
+      socket.on('booking_status_updated', callback);
+    }
+  };
+
+  const onBookingCompleted = (callback) => {
+    if (socket) {
+      socket.on('booking_completed', callback);
+    }
+  };
+
+  const onBookingRemoved = (callback) => {
+    if (socket) {
+      socket.on('booking_removed', callback);
     }
   };
 
@@ -160,6 +198,11 @@ export const SocketProvider = ({ children }) => {
     onPaymentReceived,
     onRideUpdated,
     onReviewCreated,
+    onRideCancelled,
+    onNewBooking,
+    onBookingStatusUpdated,
+    onBookingCompleted,
+    onBookingRemoved,
     emitBookingCreated,
     emitBookingConfirmed,
     emitBookingCancelled,

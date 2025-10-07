@@ -95,6 +95,34 @@ const createBooking = async (req, res) => {
       { path: 'studentId', select: 'name email phone' }
     ]);
 
+    // Emit real-time notification to staff
+    const io = req.app.get('io');
+    const roomName = `user_${ride.providerId}`;
+    console.log('Emitting new_booking to room:', roomName);
+    console.log('Booking data:', {
+      bookingId: booking._id,
+      studentName: booking.studentId.name,
+      providerId: ride.providerId
+    });
+    
+    io.to(roomName).emit('new_booking', {
+      bookingId: booking._id,
+      studentName: booking.studentId.name,
+      studentEmail: booking.studentId.email,
+      studentPhone: booking.studentId.phone,
+      seatsBooked: booking.seatsBooked,
+      totalPrice: booking.totalPrice,
+      specialRequests: booking.specialRequests,
+      pickupNotes: booking.pickupNotes,
+      rideDetails: {
+        pickupLocation: ride.pickupLocation,
+        destination: ride.destination,
+        date: ride.date,
+        time: ride.time
+      },
+      message: `New booking from ${booking.studentId.name} for ${seatsBooked} seat(s)`
+    });
+
     res.status(201).json({
       success: true,
       message: 'Booking created successfully',
@@ -264,7 +292,12 @@ const updateBookingStatus = async (req, res) => {
       booking.completedAt = new Date();
     } else if (status === 'cancelled') {
       booking.cancelledAt = new Date();
-      booking.cancellationReason = req.body.cancellationReason || 'No reason provided';
+      // Set different cancellation reasons based on who cancelled
+      if (isStaff) {
+        booking.cancellationReason = 'Rejected by staff';
+      } else {
+        booking.cancellationReason = req.body.cancellationReason || 'Cancelled by student';
+      }
     }
 
     await booking.save();
@@ -280,6 +313,22 @@ const updateBookingStatus = async (req, res) => {
       relatedType: 'booking',
       priority: 'medium'
     });
+
+    // Emit real-time notification to student
+    const io = req.app.get('io');
+    if (isStaff) {
+      io.to(`user_${booking.studentId}`).emit('booking_status_updated', {
+        bookingId: booking._id,
+        status: status,
+        message: `Your booking has been ${status}`,
+        rideDetails: {
+          pickupLocation: ride.pickupLocation,
+          destination: ride.destination,
+          date: ride.date,
+          time: ride.time
+        }
+      });
+    }
 
     res.json({
       success: true,

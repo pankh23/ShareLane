@@ -15,7 +15,11 @@ import {
   ListItemIcon,
   Avatar,
   Paper,
-  Divider
+  Divider,
+  IconButton,
+  Tooltip,
+  Menu,
+  MenuItem
 } from '@mui/material';
 import {
   DirectionsCar as CarIcon,
@@ -25,16 +29,21 @@ import {
   Notifications as NotificationIcon,
   Add as AddIcon,
   Schedule as ScheduleIcon,
-  CheckCircle as CheckIcon
+  CheckCircle as CheckIcon,
+  Close as CloseIcon,
+  MoreVert as MoreIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useSocket } from '../../context/SocketContext';
 import { ridesAPI, bookingsAPI, notificationsAPI } from '../../services/api';
 import { toast } from 'react-toastify';
+import BookingNotificationModal from '../../components/common/BookingNotificationModal';
 
 const StaffDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { onNewBooking, isConnected, socket } = useSocket();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalRides: 0,
@@ -46,10 +55,26 @@ const StaffDashboard = () => {
   const [recentBookings, setRecentBookings] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [hasEverCreatedRides, setHasEverCreatedRides] = useState(false);
+  const [bookingNotification, setBookingNotification] = useState(null);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingActionLoading, setBookingActionLoading] = useState(false);
+  const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // Listen for new booking notifications
+  useEffect(() => {
+    if (isConnected) {
+      onNewBooking((bookingData) => {
+        setBookingNotification(bookingData);
+        setShowBookingModal(true);
+        toast.info('New booking request received!');
+      });
+    }
+  }, [onNewBooking, user?._id, isConnected]);
 
   const fetchDashboardData = async () => {
     try {
@@ -63,15 +88,10 @@ const StaffDashboard = () => {
       // Check if staff member has ever created rides (including historical ones)
       const historyResponse = await ridesAPI.getMyRideHistory({ limit: 1 });
       const hasEverCreatedRides = historyResponse.data.data.pagination.totalRides > 0;
-      console.log('Ride history check:', {
-        totalRides: historyResponse.data.data.pagination.totalRides,
-        hasEverCreatedRides,
-        rides: historyResponse.data.data.rides
-      });
+      const totalRides = historyResponse.data.data.pagination.totalRides;
       setHasEverCreatedRides(hasEverCreatedRides);
 
       // Calculate stats
-      const totalRides = rides.length;
       const activeRides = rides.filter(ride => ride.status === 'active').length;
       
       // Fetch bookings for all rides
@@ -119,6 +139,7 @@ const StaffDashboard = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'active': return 'success';
+      case 'confirmed': return 'info';
       case 'completed': return 'primary';
       case 'cancelled': return 'error';
       case 'expired': return 'warning';
@@ -132,6 +153,119 @@ const StaffDashboard = () => {
       currency: 'INR'
     }).format(amount);
   };
+
+  // Booking action handlers
+  const handleBookingAction = async (action) => {
+    if (!bookingNotification) return;
+
+    try {
+      setBookingActionLoading(true);
+      
+      await bookingsAPI.updateBookingStatus(bookingNotification.bookingId, action);
+      
+      toast.success(`Booking ${action} successfully!`);
+      
+      // Emit socket event to notify student
+      if (socket) {
+        socket.emit('booking_status_updated', {
+          bookingId: bookingNotification.bookingId,
+          status: action,
+          studentId: bookingNotification.studentId,
+          message: `Your booking has been ${action}`
+        });
+      }
+      
+      setShowBookingModal(false);
+      setBookingNotification(null);
+      
+      // Refresh dashboard data
+      fetchDashboardData();
+      
+    } catch (error) {
+      console.error(`Error ${action} booking:`, error);
+      toast.error(`Failed to ${action} booking`);
+    } finally {
+      setBookingActionLoading(false);
+    }
+  };
+
+  const handleConfirmBooking = () => handleBookingAction('confirmed');
+  const handleRejectBooking = () => handleBookingAction('cancelled');
+  const handlePendingBooking = () => {
+    setShowBookingModal(false);
+    setBookingNotification(null);
+    toast.info('Booking left as pending');
+  };
+
+  const handleCloseBookingModal = () => {
+    setShowBookingModal(false);
+    setBookingNotification(null);
+  };
+
+  // Action menu handlers
+  const handleActionMenuOpen = (event, booking) => {
+    setActionMenuAnchor(event.currentTarget);
+    setSelectedBooking(booking);
+  };
+
+  const handleActionMenuClose = () => {
+    setActionMenuAnchor(null);
+    setSelectedBooking(null);
+  };
+
+  // Booking action handlers for recent bookings
+  const handleBookingActionFromList = async (action) => {
+    if (!selectedBooking) return;
+
+    try {
+      setBookingActionLoading(true);
+      
+      await bookingsAPI.updateBookingStatus(selectedBooking._id, action);
+      
+      toast.success(`Booking ${action} successfully!`);
+      
+      // Emit socket event to notify student
+      if (socket) {
+        socket.emit('booking_status_updated', {
+          bookingId: selectedBooking._id,
+          status: action,
+          studentId: selectedBooking.studentId._id,
+          message: `Your booking has been ${action}`
+        });
+      }
+      
+      // Refresh dashboard data
+      fetchDashboardData();
+      
+    } catch (error) {
+      console.error(`Error ${action} booking:`, error);
+      toast.error(`Failed to ${action} booking`);
+    } finally {
+      setBookingActionLoading(false);
+      handleActionMenuClose();
+    }
+  };
+
+  const handleConfirmFromList = () => handleBookingActionFromList('confirmed');
+  const handleRejectFromList = () => handleBookingActionFromList('cancelled');
+
+  // Get available actions based on booking status
+  const getAvailableActions = (booking) => {
+    switch (booking.status) {
+      case 'pending':
+        return [
+          { action: 'confirmed', label: 'Confirm Booking', icon: <CheckIcon />, color: 'success' },
+          { action: 'cancelled', label: 'Reject Booking', icon: <CloseIcon />, color: 'error' }
+        ];
+      case 'confirmed':
+        return [
+          { action: 'cancelled', label: 'Reject Booking', icon: <CloseIcon />, color: 'error' }
+        ];
+      default:
+        return [];
+    }
+  };
+
 
   if (loading) {
     return (
@@ -349,7 +483,13 @@ const StaffDashboard = () => {
                   <List>
                     {recentBookings.map((booking, index) => (
                       <React.Fragment key={booking._id}>
-                        <ListItem>
+                        <ListItem
+                          sx={{
+                            '&:hover': {
+                              backgroundColor: 'action.hover'
+                            }
+                          }}
+                        >
                           <ListItemIcon>
                             <Avatar sx={{ bgcolor: 'primary.main' }}>
                               {booking.studentId?.name?.charAt(0)}
@@ -372,9 +512,25 @@ const StaffDashboard = () => {
                                     {booking.seatsBooked} seat(s) • {formatCurrency(booking.totalPrice)}
                                   </Typography>
                                 </Box>
+                                {booking.specialRequests && (
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+                                    Note: {booking.specialRequests}
+                                  </Typography>
+                                )}
                               </Box>
                             }
                           />
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Tooltip title="More Actions">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => handleActionMenuOpen(e, booking)}
+                                disabled={bookingActionLoading}
+                              >
+                                <MoreIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
                         </ListItem>
                         {index < recentBookings.length - 1 && <Divider />}
                       </React.Fragment>
@@ -386,6 +542,55 @@ const StaffDashboard = () => {
           </Grid>
         </Grid>
       </Box>
+
+      {/* Booking Notification Modal */}
+      <BookingNotificationModal
+        open={showBookingModal}
+        onClose={handleCloseBookingModal}
+        bookingData={bookingNotification}
+        onConfirm={handleConfirmBooking}
+        onReject={handleRejectBooking}
+        onPending={handlePendingBooking}
+        loading={bookingActionLoading}
+      />
+
+      {/* Action Menu */}
+      <Menu
+        anchorEl={actionMenuAnchor}
+        open={Boolean(actionMenuAnchor)}
+        onClose={handleActionMenuClose}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        {selectedBooking && getAvailableActions(selectedBooking).map((actionItem) => (
+          <MenuItem 
+            key={actionItem.action}
+            onClick={() => handleBookingActionFromList(actionItem.action)} 
+            disabled={bookingActionLoading}
+            sx={{ 
+              backgroundColor: actionItem.color === 'success' ? 'success.light' : 'transparent',
+              color: actionItem.color === 'success' ? 'success.contrastText' : 'inherit',
+              '&:hover': {
+                backgroundColor: actionItem.color === 'success' ? 'success.main' : 'action.hover',
+              }
+            }}
+          >
+            {actionItem.icon}
+            <span style={{ marginLeft: 8 }}>{actionItem.label}</span>
+          </MenuItem>
+        ))}
+        {selectedBooking && getAvailableActions(selectedBooking).length === 0 && (
+          <MenuItem disabled>
+            No actions available
+          </MenuItem>
+        )}
+      </Menu>
     </Container>
   );
 };

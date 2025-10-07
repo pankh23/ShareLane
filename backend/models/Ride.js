@@ -145,10 +145,46 @@ rideSchema.statics.markExpiredRides = async function() {
   }
   
   if (expiredRideIds.length > 0) {
+    // Mark rides as expired
     await this.updateMany(
       { _id: { $in: expiredRideIds } },
       { status: 'expired' }
     );
+    
+    // Update all pending/confirmed bookings for these rides to completed
+    const Booking = require('./Booking');
+    const Notification = require('./Notification');
+    
+    const bookings = await Booking.find({
+      rideId: { $in: expiredRideIds },
+      status: { $in: ['pending', 'confirmed'] }
+    }).populate('studentId', 'name email').populate('rideId', 'pickupLocation destination');
+    
+    if (bookings.length > 0) {
+      // Update booking status to completed
+      await Booking.updateMany(
+        { rideId: { $in: expiredRideIds }, status: { $in: ['pending', 'confirmed'] } },
+        { 
+          status: 'completed',
+          completedAt: new Date()
+        }
+      );
+      
+      // Create notifications for students
+      const notifications = bookings.map(booking => ({
+        userId: booking.studentId._id,
+        title: 'Ride Completed',
+        message: `Your ride from ${booking.rideId.pickupLocation} to ${booking.rideId.destination} has been completed`,
+        type: 'completion',
+        relatedId: booking._id,
+        relatedType: 'booking',
+        priority: 'medium'
+      }));
+      
+      await Notification.insertMany(notifications);
+      
+      console.log(`Updated ${bookings.length} bookings to completed for expired rides`);
+    }
     
     console.log(`Marked ${expiredRideIds.length} rides as expired`);
   }

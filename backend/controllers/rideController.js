@@ -1,6 +1,7 @@
 const Ride = require('../models/Ride');
 const Booking = require('../models/Booking');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 
 // @desc    Get all rides with filters
 // @route   GET /api/rides
@@ -22,10 +23,15 @@ const getRides = async (req, res) => {
     // First, mark any expired rides
     await Ride.markExpiredRides();
 
-    // Build filter object - include active and recently expired rides
+    // Build filter object - only include active rides for search
     const filter = { 
-      status: { $in: ['active', 'completed', 'expired'] } // Include all non-cancelled rides
+      status: 'active' // Only show active rides in search results
     };
+    
+    // Always exclude past rides (rides before today)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    filter.date = { $gte: today };
     
     if (pickup) {
       filter.pickupLocation = { $regex: pickup, $options: 'i' };
@@ -241,22 +247,50 @@ const deleteRide = async (req, res) => {
       });
     }
 
-    // Check if ride has confirmed bookings
-    const confirmedBookings = await Booking.countDocuments({
+    // Get all bookings for this ride
+    const bookings = await Booking.find({
       rideId: ride._id,
-      status: { $in: ['confirmed', 'completed'] }
-    });
-
-    if (confirmedBookings > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete ride with confirmed bookings'
-      });
-    }
+      status: { $in: ['pending', 'confirmed'] }
+    }).populate('studentId', 'name email');
 
     // Soft delete - mark as cancelled instead of actually deleting
     ride.status = 'cancelled';
     await ride.save();
+
+    // Update all pending/confirmed bookings to cancelled
+    if (bookings.length > 0) {
+      await Booking.updateMany(
+        { rideId: ride._id, status: { $in: ['pending', 'confirmed'] } },
+        { 
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: 'Ride cancelled by provider'
+        }
+      );
+
+      // Create notifications for all affected students
+      const notifications = bookings.map(booking => ({
+        userId: booking.studentId._id,
+        title: 'Ride Cancelled',
+        message: `Your ride from ${ride.pickupLocation} to ${ride.destination} has been cancelled by the provider`,
+        type: 'cancellation',
+        relatedId: booking._id,
+        relatedType: 'booking',
+        priority: 'high'
+      }));
+
+      await Notification.insertMany(notifications);
+
+      // Emit socket events to notify students in real-time
+      const io = req.app.get('io');
+      bookings.forEach(booking => {
+        io.to(`user_${booking.studentId._id}`).emit('ride_cancelled', {
+          rideId: ride._id,
+          bookingId: booking._id,
+          message: `Your ride from ${ride.pickupLocation} to ${ride.destination} has been cancelled`
+        });
+      });
+    }
 
     res.json({
       success: true,

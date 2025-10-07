@@ -49,12 +49,14 @@ import {
   FilterList as FilterIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
+import { useSocket } from '../../context/SocketContext';
 import { bookingsAPI } from '../../services/api';
 import { toast } from 'react-toastify';
 
 const MyBookingsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { onRideCancelled, onBookingStatusUpdated, onBookingCompleted, onBookingRemoved } = useSocket();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -80,6 +82,76 @@ const MyBookingsPage = () => {
       fetchStatusCounts();
     }
   }, [page, statusFilter]);
+
+  // Listen for ride cancellation events
+  useEffect(() => {
+    onRideCancelled((data) => {
+      console.log('Ride cancelled:', data);
+      toast.error(data.message);
+      // Refresh bookings to show updated status
+      fetchBookings();
+      if (statusFilter === 'all') {
+        fetchStatusCounts();
+      }
+    });
+  }, [onRideCancelled, statusFilter]);
+
+  // Listen for booking status updates
+  useEffect(() => {
+    onBookingStatusUpdated((data) => {
+      console.log('Booking status updated:', data);
+      const statusMessages = {
+        confirmed: 'Your booking has been confirmed!',
+        cancelled: 'Your booking has been cancelled',
+        completed: 'Your ride has been completed'
+      };
+      
+      const message = statusMessages[data.status] || `Your booking status has been updated to ${data.status}`;
+      
+      if (data.status === 'confirmed') {
+        toast.success(message);
+      } else if (data.status === 'cancelled') {
+        toast.error(message);
+      } else {
+        toast.info(message);
+      }
+      
+      // Refresh bookings to show updated status
+      fetchBookings();
+      if (statusFilter === 'all') {
+        fetchStatusCounts();
+      }
+    });
+  }, [onBookingStatusUpdated, statusFilter]);
+
+  // Listen for booking completion events
+  useEffect(() => {
+    onBookingCompleted((data) => {
+      console.log('Booking completed:', data);
+      toast.success(data.message);
+      // Refresh bookings to show updated status
+      fetchBookings();
+      if (statusFilter === 'all') {
+        fetchStatusCounts();
+      }
+    });
+  }, [onBookingCompleted, statusFilter]);
+
+  // Listen for booking removal events (rejected bookings)
+  useEffect(() => {
+    onBookingRemoved((data) => {
+      console.log('Booking removed:', data);
+      toast.info(data.message);
+      // Remove booking from local state
+      setBookings(prevBookings => 
+        prevBookings.filter(booking => booking._id !== data.bookingId)
+      );
+      // Update status counts
+      if (statusFilter === 'all') {
+        fetchStatusCounts();
+      }
+    });
+  }, [onBookingRemoved, statusFilter]);
 
   const fetchBookings = async () => {
     try {

@@ -90,7 +90,8 @@ io.on('connection', (socket) => {
   // Join user to their personal room
   socket.on('join', (userId) => {
     socket.join(`user_${userId}`);
-    console.log(`User ${userId} joined their room`);
+    console.log(`User ${userId} joined their room: user_${userId}`);
+    console.log('Socket rooms:', Array.from(socket.rooms));
   });
 
   // Handle booking events
