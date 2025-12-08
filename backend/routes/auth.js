@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const {
   register,
+  verifyOtp,
+  resendOtp,
   login,
   getProfile,
   updateProfile,
@@ -10,13 +12,25 @@ const {
 const { authenticate } = require('../middleware/auth');
 const {
   validateUserRegistration,
-  validateUserLogin
+  validateUserLogin,
+  validateOtpVerification,
+  validateResendOtp
 } = require('../middleware/validation');
 
 // @route   POST /api/auth/register
-// @desc    Register a new user
+// @desc    Send OTP for registration
 // @access  Public
 router.post('/register', validateUserRegistration, register);
+
+// @route   POST /api/auth/verify-otp
+// @desc    Verify OTP and complete registration
+// @access  Public
+router.post('/verify-otp', validateOtpVerification, verifyOtp);
+
+// @route   POST /api/auth/resend-otp
+// @desc    Resend OTP for registration
+// @access  Public
+router.post('/resend-otp', validateResendOtp, resendOtp);
 
 // @route   POST /api/auth/login
 // @desc    Login user

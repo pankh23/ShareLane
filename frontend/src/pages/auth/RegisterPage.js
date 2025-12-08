@@ -16,7 +16,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  FormHelperText
+  FormHelperText,
+  LinearProgress
 } from '@mui/material';
 import {
   Visibility,
@@ -25,32 +26,49 @@ import {
   Lock as LockIcon,
   Person as PersonIcon,
   Phone as PhoneIcon,
-  DirectionsCar as CarIcon
+  DirectionsCar as CarIcon,
+  VerifiedUser as VerifiedIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../../context/AuthContext';
+import { toast } from 'react-toastify';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
-  const { register: registerUser, isAuthenticated, user, error, clearError } = useAuth();
+  const { register: registerUser, verifyOtp, resendOtp, isAuthenticated, user, error, clearError } = useAuth();
   
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [resendingOtp, setResendingOtp] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [registrationData, setRegistrationData] = useState(null);
 
   const {
     register,
     handleSubmit,
     watch,
-    formState: { errors }
+    formState: { errors },
+    setValue,
+    getValues
   } = useForm({
     defaultValues: {
-      role: 'student' // Set default role
+      role: 'student',
+      name: '',
+      email: '',
+      phone: '',
+      password: '',
+      confirmPassword: ''
     }
   });
 
   const roleValue = watch('role');
-
   const password = watch('password');
+  const email = watch('email');
+  const name = watch('name');
+  const phone = watch('phone');
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -63,22 +81,84 @@ const RegisterPage = () => {
   // Clear errors when component unmounts
   useEffect(() => {
     return () => clearError();
-  }, [clearError]); // Include clearError in dependencies
+  }, [clearError]);
 
-  const onSubmit = async (data) => {
-    setLoading(true);
-    const result = await registerUser(data);
-    setLoading(false);
+  const onSubmit = async (data, e) => {
+    e?.preventDefault(); // Prevent form reset
     
-    if (result.success && result.user) {
-      // Redirect immediately using the user data from registration response
-      const redirectPath = result.user.role === 'staff' ? '/staff/dashboard' : '/student/dashboard';
-      navigate(redirectPath, { replace: true });
+    // If OTP is already sent, verify the OTP instead
+    if (otpSent && otpValue.length === 6) {
+      setVerifyingOtp(true);
+      const result = await verifyOtp(userEmail, otpValue);
+      setVerifyingOtp(false);
+      
+      if (result.success && result.user) {
+        // Redirect will happen automatically via useEffect when user is authenticated
+        const redirectPath = result.user.role === 'staff' ? '/staff/dashboard' : '/student/dashboard';
+        navigate(redirectPath, { replace: true });
+      } else {
+        // Error toast is already shown in verifyOtp function
+        setOtpValue(''); // Clear OTP input on error
+      }
+      return;
+    }
+
+    // First time submission - send OTP
+    if (!otpSent) {
+      // Store email immediately
+      setUserEmail(data.email);
+      
+      // Send OTP - no loading state, no form reset
+      const result = await registerUser(data);
+      
+      if (result.success && result.email) {
+        // Set OTP sent state - this will disable registration fields and enable OTP field
+        setOtpSent(true);
+        // Form values are automatically preserved by react-hook-form - no reset needed
+      }
+      // If it fails, form data is still there, user can retry
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!userEmail) {
+      toast.error('Please register first');
+      return;
+    }
+    
+    setResendingOtp(true);
+    const result = await resendOtp(userEmail);
+    setResendingOtp(false);
+    
+    if (result.success) {
+      setOtpValue(''); // Clear current OTP input
+    }
+  };
+
+  const handleOtpChange = (e) => {
+    const value = e.target.value.replace(/\D/g, ''); // Only allow digits
+    if (value.length <= 6) {
+      setOtpValue(value);
     }
   };
 
   const handleTogglePasswordVisibility = () => {
     setShowPassword(!showPassword);
+  };
+
+  const handleBackToEdit = () => {
+    setOtpSent(false);
+    setOtpValue('');
+    clearError();
+    // Restore form values
+    if (registrationData) {
+      setValue('name', registrationData.name);
+      setValue('email', registrationData.email);
+      setValue('phone', registrationData.phone);
+      setValue('role', registrationData.role);
+      setValue('password', registrationData.password);
+      setValue('confirmPassword', registrationData.confirmPassword);
+    }
   };
 
   return (
@@ -110,7 +190,7 @@ const RegisterPage = () => {
                 Create Account
               </Typography>
               <Typography variant="body1" color="text.secondary">
-                Choose your role and get started
+                {otpSent ? 'Enter OTP to verify your email' : 'Fill in your details and verify your email'}
               </Typography>
             </Box>
 
@@ -120,29 +200,49 @@ const RegisterPage = () => {
               </Alert>
             )}
 
-            <form onSubmit={handleSubmit(onSubmit)}>
-              <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                <TextField
-                  fullWidth
-                  label="First Name"
-                  {...register('name', {
-                    required: 'Name is required',
-                    minLength: {
-                      value: 2,
-                      message: 'Name must be at least 2 characters'
-                    }
-                  })}
-                  error={!!errors.name}
-                  helperText={errors.name?.message}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonIcon color="action" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Box>
+            {otpSent && (
+              <Alert severity="info" sx={{ mb: 3 }}>
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    OTP sent to <strong>{userEmail}</strong>
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={handleResendOtp}
+                    disabled={resendingOtp}
+                    startIcon={<RefreshIcon />}
+                    sx={{ textTransform: 'none', p: 0, minWidth: 'auto' }}
+                  >
+                    {resendingOtp ? 'Resending...' : 'Resend OTP'}
+                  </Button>
+                </Box>
+              </Alert>
+            )}
+
+            <form onSubmit={handleSubmit(onSubmit)} noValidate>
+              <TextField
+                fullWidth
+                label="First Name"
+                {...register('name', {
+                  required: 'Name is required',
+                  minLength: {
+                    value: 2,
+                    message: 'Name must be at least 2 characters'
+                  }
+                })}
+                error={!!errors.name}
+                helperText={errors.name?.message}
+                disabled={otpSent}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PersonIcon color="action" />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ mb: 3 }}
+              />
 
               <TextField
                 fullWidth
@@ -157,6 +257,7 @@ const RegisterPage = () => {
                 })}
                 error={!!errors.email}
                 helperText={errors.email?.message}
+                disabled={otpSent}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -179,6 +280,7 @@ const RegisterPage = () => {
                 })}
                 error={!!errors.phone}
                 helperText={errors.phone?.message}
+                disabled={otpSent}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -193,6 +295,7 @@ const RegisterPage = () => {
                 fullWidth
                 error={!!errors.role}
                 sx={{ mb: 3 }}
+                disabled={otpSent}
               >
                 <InputLabel>Role</InputLabel>
                 <Select
@@ -235,6 +338,7 @@ const RegisterPage = () => {
                 })}
                 error={!!errors.password}
                 helperText={errors.password?.message}
+                disabled={otpSent}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -247,6 +351,7 @@ const RegisterPage = () => {
                         aria-label="toggle password visibility"
                         onClick={handleTogglePasswordVisibility}
                         edge="end"
+                        disabled={otpSent}
                       >
                         {showPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
@@ -266,6 +371,7 @@ const RegisterPage = () => {
                 })}
                 error={!!errors.confirmPassword}
                 helperText={errors.confirmPassword?.message}
+                disabled={otpSent}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -276,12 +382,81 @@ const RegisterPage = () => {
                 sx={{ mb: 3 }}
               />
 
+              {/* OTP Input Field - Always Visible */}
+              <Box sx={{ mb: 3, p: 2, bgcolor: otpSent ? 'action.selected' : 'grey.50', borderRadius: 2, border: otpSent ? '2px solid' : '1px solid', borderColor: otpSent ? 'primary.main' : 'divider' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                  <VerifiedIcon color={otpSent ? 'primary' : 'disabled'} sx={{ mr: 1 }} />
+                  <Typography variant="subtitle2" color={otpSent ? 'primary' : 'text.secondary'}>
+                    Email Verification Code
+                  </Typography>
+                </Box>
+                <TextField
+                  fullWidth
+                  label="Enter 6-digit OTP"
+                  value={otpValue}
+                  onChange={handleOtpChange}
+                  placeholder="000000"
+                  disabled={!otpSent}
+                  helperText={otpSent ? "Enter the code sent to your email" : "Complete registration above to receive OTP"}
+                  inputProps={{
+                    maxLength: 6,
+                    style: {
+                      textAlign: 'center',
+                      fontSize: '1.5rem',
+                      letterSpacing: '0.5rem',
+                      fontWeight: 'bold'
+                    }
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      fontSize: '1.5rem'
+                    }
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <VerifiedIcon color={otpSent ? 'primary' : 'disabled'} />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                {otpSent && (
+                  <Box sx={{ mt: 1, textAlign: 'center' }}>
+                    <Button
+                      variant="text"
+                      size="small"
+                      onClick={handleResendOtp}
+                      disabled={resendingOtp}
+                      startIcon={<RefreshIcon />}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      {resendingOtp ? 'Resending...' : 'Resend OTP'}
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+
+              {otpSent && (
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  onClick={handleBackToEdit}
+                  sx={{
+                    py: 1,
+                    mb: 2,
+                    textTransform: 'none'
+                  }}
+                >
+                  Edit Registration Details
+                </Button>
+              )}
+
               <Button
                 type="submit"
                 fullWidth
                 variant="contained"
                 size="large"
-                disabled={loading}
+                disabled={verifyingOtp || (otpSent && otpValue.length !== 6)}
                 sx={{
                   py: 1.5,
                   mb: 3,
@@ -290,8 +465,12 @@ const RegisterPage = () => {
                   borderRadius: 2
                 }}
               >
-                {loading ? 'Creating Account...' : 'Create Account'}
+                {verifyingOtp ? 'Verifying...' : otpSent ? 'Verify & Complete Registration' : 'Send OTP & Register'}
               </Button>
+
+              {verifyingOtp && (
+                <LinearProgress sx={{ mb: 2 }} />
+              )}
             </form>
 
             <Divider sx={{ my: 3 }}>

@@ -32,6 +32,21 @@ const io = new Server(server, {
 // Connect to database
 connectDB();
 
+// CORS configuration - MUST be before other middleware
+const corsOptions = {
+  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Authorization'],
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
 // Security middleware - relaxed for development
 app.use(helmet({
   contentSecurityPolicy: {
@@ -42,6 +57,7 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"],
     },
   },
+  crossOriginResourcePolicy: { policy: "cross-origin" } // Allow cross-origin requests
 }));
 
 // Rate limiting - Disabled for development
@@ -55,12 +71,6 @@ if (process.env.NODE_ENV === 'production') {
   });
   app.use('/api/', limiter);
 }
-
-// CORS configuration
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
-  credentials: true
-}));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

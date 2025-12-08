@@ -50,6 +50,28 @@ const validateUserLogin = [
   handleValidationErrors
 ];
 
+// OTP verification validation
+const validateOtpVerification = [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+  body('otp')
+    .isLength({ min: 6, max: 6 })
+    .isNumeric()
+    .withMessage('OTP must be a 6-digit number'),
+  handleValidationErrors
+];
+
+// Resend OTP validation
+const validateResendOtp = [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+  handleValidationErrors
+];
+
 // Ride creation validation
 const validateRideCreation = [
   body('pickupLocation')
@@ -131,6 +153,8 @@ module.exports = {
   handleValidationErrors,
   validateUserRegistration,
   validateUserLogin,
+  validateOtpVerification,
+  validateResendOtp,
   validateRideCreation,
   validateBooking,
   validateReview

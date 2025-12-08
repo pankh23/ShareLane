@@ -22,6 +22,7 @@ const AUTH_ACTIONS = {
   REGISTER_START: 'REGISTER_START',
   REGISTER_SUCCESS: 'REGISTER_SUCCESS',
   REGISTER_FAILURE: 'REGISTER_FAILURE',
+  OTP_SENT: 'OTP_SENT', // New action for when OTP is sent (no loading state)
   LOGOUT: 'LOGOUT',
   LOAD_USER_START: 'LOAD_USER_START',
   LOAD_USER_SUCCESS: 'LOAD_USER_SUCCESS',
@@ -91,6 +92,14 @@ const authReducer = (state, action) => {
       return {
         ...state,
         user: { ...state.user, ...action.payload }
+      };
+    
+    case AUTH_ACTIONS.OTP_SENT:
+      // OTP sent successfully, no loading, no authentication
+      return {
+        ...state,
+        loading: false,
+        error: null
       };
     
     case AUTH_ACTIONS.CLEAR_ERROR:
@@ -177,26 +186,65 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Register function
+  // Register function - sends OTP, doesn't authenticate
   const register = async (userData) => {
+    try {
+      // Don't set loading state - just send OTP silently
+      const response = await axios.post(`${API_BASE_URL}/auth/register`, userData);
+      
+      // Dispatch OTP_SENT action (no loading state)
+      dispatch({ type: AUTH_ACTIONS.OTP_SENT });
+      
+      toast.success('OTP sent to your email. Please verify to complete registration.');
+      return { 
+        success: true, 
+        email: response.data.data.email,
+        message: response.data.message 
+      };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to send OTP';
+      dispatch({
+        type: AUTH_ACTIONS.REGISTER_FAILURE,
+        payload: message
+      });
+      toast.error(message);
+      return { success: false, message };
+    }
+  };
+
+  // Verify OTP function - authenticates after successful verification
+  const verifyOtp = async (email, otp) => {
     try {
       dispatch({ type: AUTH_ACTIONS.REGISTER_START });
       
-      const response = await axios.post(`${API_BASE_URL}/auth/register`, userData);
+      const response = await axios.post(`${API_BASE_URL}/auth/verify-otp`, { email, otp });
       
       dispatch({
         type: AUTH_ACTIONS.REGISTER_SUCCESS,
         payload: response.data.data
       });
       
-      toast.success('Registration successful!');
+      toast.success('Email verified successfully! Registration complete.');
       return { success: true, user: response.data.data.user };
     } catch (error) {
-      const message = error.response?.data?.message || 'Registration failed';
+      const message = error.response?.data?.message || 'OTP verification failed';
       dispatch({
         type: AUTH_ACTIONS.REGISTER_FAILURE,
         payload: message
       });
+      toast.error(message);
+      return { success: false, message };
+    }
+  };
+
+  // Resend OTP function
+  const resendOtp = async (email) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/auth/resend-otp`, { email });
+      toast.success('OTP resent to your email. Please check your inbox.');
+      return { success: true, message: response.data.message };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to resend OTP';
       toast.error(message);
       return { success: false, message };
     }
@@ -236,6 +284,8 @@ export const AuthProvider = ({ children }) => {
     ...state,
     login,
     register,
+    verifyOtp,
+    resendOtp,
     logout,
     updateProfile,
     clearError,

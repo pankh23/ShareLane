@@ -1,7 +1,7 @@
 const { server, io } = require('./app');
 const { scheduleRideExpirationEvery5Minutes } = require('./utils/scheduler');
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
