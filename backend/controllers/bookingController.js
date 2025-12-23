@@ -2,6 +2,7 @@ const Booking = require('../models/Booking');
 const Ride = require('../models/Ride');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const { sendBookingConfirmationEmail, sendBookingRejectionEmail } = require('../utils/emailService');
 
 // @desc    Create new booking
 // @route   POST /api/bookings
@@ -91,18 +92,66 @@ const createBooking = async (req, res) => {
 
     // Populate booking details
     await booking.populate([
-      { path: 'rideId', select: 'pickupLocation destination date time pricePerSeat' },
+      { 
+        path: 'rideId', 
+        select: 'pickupLocation destination date time pricePerSeat',
+        populate: {
+          path: 'providerId',
+          select: 'name email phone'
+        }
+      },
       { path: 'studentId', select: 'name email phone' }
     ]);
 
+    // Send booking confirmation email to student
+    try {
+      const ride = booking.rideId;
+      const provider = ride.providerId;
+      const student = booking.studentId;
+
+      console.log('Attempting to send booking confirmation email to:', student.email);
+      console.log('Booking data:', {
+        studentEmail: student.email,
+        studentName: student.name,
+        bookingReference: booking.bookingReference,
+        pickupLocation: ride.pickupLocation,
+        destination: ride.destination
+      });
+
+      await sendBookingConfirmationEmail({
+        studentEmail: student.email,
+        studentName: student.name,
+        bookingReference: booking.bookingReference,
+        seatsBooked: booking.seatsBooked,
+        totalPrice: booking.totalPrice,
+        pickupLocation: ride.pickupLocation,
+        destination: ride.destination,
+        rideDate: ride.date,
+        rideTime: ride.time,
+        providerName: provider.name,
+        providerEmail: provider.email,
+        providerPhone: provider.phone,
+        specialRequests: booking.specialRequests,
+        pickupNotes: booking.pickupNotes,
+        bookedAt: booking.bookedAt
+      });
+      console.log('✅ Booking confirmation email sent successfully to:', student.email);
+    } catch (emailError) {
+      // Log detailed error but don't fail the booking creation
+      console.error('❌ Failed to send booking confirmation email:', emailError.message);
+      console.error('Error stack:', emailError.stack);
+      // Continue with the booking creation even if email fails
+    }
+
     // Emit real-time notification to staff
     const io = req.app.get('io');
-    const roomName = `user_${ride.providerId}`;
+    const providerId = ride.providerId._id || ride.providerId;
+    const roomName = `user_${providerId}`;
     console.log('Emitting new_booking to room:', roomName);
     console.log('Booking data:', {
       bookingId: booking._id,
       studentName: booking.studentId.name,
-      providerId: ride.providerId
+      providerId: providerId
     });
     
     io.to(roomName).emit('new_booking', {
@@ -301,6 +350,76 @@ const updateBookingStatus = async (req, res) => {
     }
 
     await booking.save();
+
+    // Populate booking details for email
+    await booking.populate([
+      { 
+        path: 'rideId', 
+        select: 'pickupLocation destination date time pricePerSeat',
+        populate: {
+          path: 'providerId',
+          select: 'name email phone'
+        }
+      },
+      { path: 'studentId', select: 'name email phone' }
+    ]);
+
+    // Send email when booking status is updated by admin
+    if (isStaff) {
+      try {
+        const provider = booking.rideId.providerId;
+        const student = booking.studentId;
+        const ride = booking.rideId;
+
+        if (status === 'confirmed') {
+          // Send confirmation email when booking is confirmed by admin
+          console.log('Attempting to send booking confirmed email to:', student.email);
+          
+          await sendBookingConfirmationEmail({
+            studentEmail: student.email,
+            studentName: student.name,
+            bookingReference: booking.bookingReference,
+            seatsBooked: booking.seatsBooked,
+            totalPrice: booking.totalPrice,
+            pickupLocation: ride.pickupLocation,
+            destination: ride.destination,
+            rideDate: ride.date,
+            rideTime: ride.time,
+            providerName: provider.name,
+            providerEmail: provider.email,
+            providerPhone: provider.phone,
+            specialRequests: booking.specialRequests,
+            pickupNotes: booking.pickupNotes,
+            bookedAt: booking.bookedAt
+          });
+          console.log('✅ Booking confirmed email sent successfully to:', student.email);
+        } else if (status === 'cancelled') {
+          // Send rejection email when booking is rejected/cancelled by admin
+          console.log('Attempting to send booking rejection email to:', student.email);
+          
+          await sendBookingRejectionEmail({
+            studentEmail: student.email,
+            studentName: student.name,
+            bookingReference: booking.bookingReference,
+            seatsBooked: booking.seatsBooked,
+            totalPrice: booking.totalPrice,
+            pickupLocation: ride.pickupLocation,
+            destination: ride.destination,
+            rideDate: ride.date,
+            rideTime: ride.time,
+            providerName: provider.name,
+            providerEmail: provider.email,
+            providerPhone: provider.phone,
+            cancellationReason: booking.cancellationReason || 'Rejected by staff',
+            bookedAt: booking.bookedAt
+          });
+          console.log('✅ Booking rejection email sent successfully to:', student.email);
+        }
+      } catch (emailError) {
+        console.error(`❌ Failed to send booking ${status} email:`, emailError.message);
+        console.error('Error stack:', emailError.stack);
+      }
+    }
 
     // Create notification
     const notificationUserId = isStaff ? booking.studentId : ride.providerId;

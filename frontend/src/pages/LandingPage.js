@@ -498,7 +498,7 @@ const LandingPage = () => {
 
 
       {/* Features Section */}
-      <Box sx={{ py: 8, backgroundColor: 'background.default' }}>
+      <Box sx={{ py: 8, backgroundColor: 'background.default' }} className="transition-colors duration-200">
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 6 }}>
             <Typography variant="h3" component="h2" sx={{ fontWeight: 'bold', mb: 2 }}>
@@ -533,7 +533,7 @@ const LandingPage = () => {
       </Box>
 
       {/* Testimonials Section */}
-      <Box sx={{ py: 8, backgroundColor: 'background.paper' }}>
+      <Box sx={{ py: 8, backgroundColor: 'background.paper' }} className="transition-colors duration-200">
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', mb: 6 }}>
             <Typography variant="h3" component="h2" sx={{ fontWeight: 'bold', mb: 2 }}>
@@ -618,7 +618,7 @@ const LandingPage = () => {
       </Box>
 
       {/* Footer */}
-      <Box sx={{ py: 4, backgroundColor: 'background.default', borderTop: 1, borderColor: 'divider' }}>
+      <Box sx={{ py: 4, backgroundColor: 'background.default', borderTop: 1, borderColor: 'divider' }} className="transition-colors duration-200">
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2 }}>

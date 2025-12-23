@@ -19,21 +19,25 @@ import {
   AccountCircle,
   Menu as MenuIcon,
   Close as CloseIcon,
-  DirectionsCar as CarIcon
+  DirectionsCar as CarIcon,
+  LightMode as LightModeIcon,
+  DarkMode as DarkModeIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
+import { useTheme as useAppTheme } from '../../context/ThemeContext';
 import { notificationsAPI } from '../../services/api';
 import { toast } from 'react-toastify';
 
 const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
   
   const { user, logout } = useAuth();
   const { isConnected } = useSocket();
+  const { theme, toggleTheme } = useAppTheme();
   
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationAnchor, setNotificationAnchor] = useState(null);
@@ -118,14 +122,16 @@ const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
   return (
     <AppBar position="sticky" elevation={1}>
       <Toolbar>
-        {/* Menu Button */}
-        <IconButton
-          color="inherit"
-          onClick={onToggleSidebar}
-          sx={{ mr: 2 }}
-        >
-          {sidebarOpen ? <CloseIcon /> : <MenuIcon />}
-        </IconButton>
+        {/* Menu Button - Only show when sidebar is closed */}
+        {!sidebarOpen && (
+          <IconButton
+            color="inherit"
+            onClick={onToggleSidebar}
+            sx={{ mr: 2 }}
+          >
+            <MenuIcon />
+          </IconButton>
+        )}
 
         {/* Logo */}
         <Box
@@ -161,6 +167,16 @@ const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
 
         {/* Right side items */}
         <Box sx={{ display: 'flex', alignItems: 'center', ml: 'auto' }}>
+          {/* Theme Toggle */}
+          <IconButton
+            color="inherit"
+            onClick={toggleTheme}
+            sx={{ mr: 1 }}
+            aria-label="toggle theme"
+          >
+            {theme === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+          </IconButton>
+
           {/* Connection Status */}
           <Box
             sx={{

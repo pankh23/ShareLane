@@ -10,6 +10,7 @@ import {
   Typography,
   Box,
   Divider,
+  IconButton,
   useTheme,
   useMediaQuery
 } from '@mui/material';
@@ -23,7 +24,8 @@ import {
   RateReview as ReviewsIcon,
   Person as ProfileIcon,
   TrendingUp as TrendingUpIcon,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 
@@ -118,8 +120,24 @@ const Sidebar = ({ open, onClose }) => {
   const drawerContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
-        <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+      <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', position: 'relative' }}>
+        <IconButton
+          onClick={onClose}
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            color: 'text.secondary',
+            '&:hover': {
+              color: 'text.primary',
+              backgroundColor: 'action.hover'
+            }
+          }}
+          aria-label="close sidebar"
+        >
+          <CloseIcon />
+        </IconButton>
+        <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'primary.main', pr: 4 }}>
           {user && user.role === 'staff' ? 'Staff Portal' : 'Student Portal'}
         </Typography>
         <Typography variant="body2" color="text.secondary">
@@ -219,6 +237,8 @@ const Sidebar = ({ open, onClose }) => {
         '& .MuiDrawer-paper': {
           boxSizing: 'border-box',
           width: drawerWidth,
+          top: 0,
+          height: '100vh',
           borderRight: 1,
           borderColor: 'divider',
           transition: theme.transitions.create('width', {
