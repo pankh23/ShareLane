@@ -59,8 +59,22 @@ const createBooking = async (req, res) => {
       });
     }
 
-    // Calculate total price
+    // Calculate total price (pricePerSeat * seatsBooked)
     const totalPrice = ride.pricePerSeat * seatsBooked;
+    
+    if (!ride.pricePerSeat || ride.pricePerSeat <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid price per seat. Please contact support.'
+      });
+    }
+
+    if (!seatsBooked || seatsBooked <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid number of seats.'
+      });
+    }
 
     // Create booking
     const booking = new Booking({
@@ -390,7 +404,8 @@ const updateBookingStatus = async (req, res) => {
             providerPhone: provider.phone,
             specialRequests: booking.specialRequests,
             pickupNotes: booking.pickupNotes,
-            bookedAt: booking.bookedAt
+            bookedAt: booking.bookedAt,
+            isConfirmed: true // Mark as confirmed
           });
           console.log('✅ Booking confirmed email sent successfully to:', student.email);
         } else if (status === 'cancelled') {

@@ -50,7 +50,7 @@ import {
   Email as EmailIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { ridesAPI, bookingsAPI } from '../services/api';
+import { ridesAPI, bookingsAPI, paymentsAPI } from '../services/api';
 import { toast } from 'react-toastify';
 
 const RideDetailsPage = () => {
@@ -99,24 +99,78 @@ const RideDetailsPage = () => {
     try {
       setBookingLoading(true);
       
-      const bookingPayload = {
-        rideId: id,
-        seatsBooked: bookingData.seats,
-        specialRequests: bookingData.specialRequests || undefined
-      };
+      // Create Razorpay order
+      const orderResponse = await paymentsAPI.createOrder(id, bookingData.seats);
+      const { orderId, amount, keyId } = orderResponse.data.data;
 
-      await bookingsAPI.createBooking(bookingPayload);
-      
-      toast.success('Ride booked successfully!');
-      setBookingDialog(false);
-      setBookingData({ seats: 1, specialRequests: '' });
-      
-      // Refresh ride details to update available seats
-      fetchRideDetails();
+      // Load Razorpay script
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => {
+        const options = {
+          key: keyId,
+          amount: Math.round(amount * 100), // Convert to paise
+          currency: 'INR',
+          name: 'ShareLane',
+          description: `Ride booking: ${ride.pickupLocation} to ${ride.destination}`,
+          order_id: orderId,
+          handler: async function (response) {
+            try {
+              // Verify payment
+              await paymentsAPI.verifyPayment({
+                orderId: response.razorpay_order_id,
+                paymentId: response.razorpay_payment_id,
+                signature: response.razorpay_signature,
+                rideId: id,
+                seatsBooked: bookingData.seats,
+                specialRequests: bookingData.specialRequests || undefined,
+                contactPhone: bookingData.contactPhone || undefined,
+                pickupNotes: bookingData.pickupNotes || undefined
+              });
+
+              toast.success('Payment successful! Ride booked successfully!');
+              setBookingDialog(false);
+              setBookingData({ seats: 1, specialRequests: '', contactPhone: '', pickupNotes: '' });
+              
+              // Refresh ride details to update available seats
+              fetchRideDetails();
+            } catch (error) {
+              const message = error.response?.data?.message || 'Payment verification failed';
+              toast.error(message);
+            } finally {
+              setBookingLoading(false);
+            }
+          },
+          prefill: {
+            name: user?.name || '',
+            email: user?.email || '',
+            contact: user?.phone || ''
+          },
+          theme: {
+            color: '#1976d2'
+          },
+          modal: {
+            ondismiss: function() {
+              setBookingLoading(false);
+            }
+          }
+        };
+
+        const razorpay = new window.Razorpay(options);
+        razorpay.on('payment.failed', function (response) {
+          toast.error('Payment failed. Please try again.');
+          setBookingLoading(false);
+        });
+        razorpay.open();
+      };
+      script.onerror = () => {
+        toast.error('Failed to load payment gateway');
+        setBookingLoading(false);
+      };
+      document.body.appendChild(script);
     } catch (error) {
-      const message = error.response?.data?.message || 'Failed to book ride';
+      const message = error.response?.data?.message || 'Failed to initiate payment';
       toast.error(message);
-    } finally {
       setBookingLoading(false);
     }
   };
@@ -467,6 +521,9 @@ const RideDetailsPage = () => {
                 <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
                   ₹{ride.pricePerSeat} per seat
                 </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Total will be calculated based on number of seats selected
+                </Typography>
               </Box>
 
               <Button
@@ -504,11 +561,23 @@ const RideDetailsPage = () => {
                 >
                   {Array.from({ length: Math.min(ride.availableSeats, 4) }, (_, i) => i + 1).map((num) => (
                     <MenuItem key={num} value={num}>
-                      {num} seat{num > 1 ? 's' : ''} - ₹{ride.pricePerSeat * num}
+                      {num} seat{num > 1 ? 's' : ''}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
+
+              <Box sx={{ mb: 3, p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  Total Amount to Pay:
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                  ₹{ride.pricePerSeat * bookingData.seats}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  ₹{ride.pricePerSeat} × {bookingData.seats} seat{bookingData.seats > 1 ? 's' : ''}
+                </Typography>
+              </Box>
 
               <TextField
                 fullWidth
@@ -532,7 +601,7 @@ const RideDetailsPage = () => {
               variant="contained"
               disabled={bookingLoading}
             >
-              {bookingLoading ? 'Booking...' : `Book for ₹${ride.pricePerSeat * bookingData.seats}`}
+              {bookingLoading ? 'Processing...' : `Pay ₹${ride.pricePerSeat * bookingData.seats}`}
             </Button>
           </DialogActions>
         </Dialog>

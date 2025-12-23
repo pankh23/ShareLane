@@ -377,7 +377,7 @@ const CreateRidePage = () => {
                         min: { value: 0, message: 'Price cannot be negative' }
                       })}
                       error={!!errors.pricePerSeat}
-                      helperText={errors.pricePerSeat?.message}
+                      helperText={errors.pricePerSeat?.message || 'Price per seat - total will be calculated based on number of seats booked'}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">₹</InputAdornment>

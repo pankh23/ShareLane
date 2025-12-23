@@ -438,11 +438,11 @@ const SearchRidesPage = () => {
                           </Box>
                         }
                         secondary={
-                          <span>
-                            <Typography variant="body2" color="text.secondary" component="span">
+                          <Box component="div">
+                            <Typography variant="body2" color="text.secondary" component="span" sx={{ display: 'block', mb: 0.5 }}>
                               {ride.providerId?.name} • {formatDate(ride.date)} at {formatTime(ride.time)}
                             </Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }} component="span">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                               <Chip
                                 icon={<CarIcon />}
                                 label={`${getVehicleIcon(ride.vehicleType)} ${ride.vehicleType}`}
@@ -468,7 +468,7 @@ const SearchRidesPage = () => {
                                 </Box>
                               )}
                             </Box>
-                          </span>
+                          </Box>
                         }
                       />
                     </ListItem>

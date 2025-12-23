@@ -46,12 +46,14 @@ import {
   CheckCircle as CheckIcon,
   Schedule as ScheduleIcon,
   Star as StarIcon,
-  FilterList as FilterIcon
+  FilterList as FilterIcon,
+  Chat as ChatIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { bookingsAPI } from '../../services/api';
 import { toast } from 'react-toastify';
+import ChatWindow from '../../components/chat/ChatWindow';
 
 const MyBookingsPage = () => {
   const navigate = useNavigate();
@@ -75,6 +77,9 @@ const MyBookingsPage = () => {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatBooking, setChatBooking] = useState(null);
+  const [chatCanChat, setChatCanChat] = useState(false);
 
   useEffect(() => {
     fetchBookings();
@@ -447,6 +452,30 @@ const MyBookingsPage = () => {
                       >
                         View Details
                       </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="primary"
+                        startIcon={<ChatIcon />}
+                        onClick={() => {
+                          // Check if chat is allowed
+                          const isCompleted = booking.status === 'completed' && booking.completedAt;
+                          let canChat = true;
+                          
+                          if (isCompleted) {
+                            const completedAt = new Date(booking.completedAt);
+                            const now = new Date();
+                            const hoursSinceCompletion = (now - completedAt) / (1000 * 60 * 60);
+                            canChat = hoursSinceCompletion <= 24;
+                          }
+                          
+                          setChatCanChat(canChat);
+                          setChatBooking(booking);
+                          setChatOpen(true);
+                        }}
+                      >
+                        Chat
+                      </Button>
                       {canCancel(booking) && (
                         <Button
                           size="small"
@@ -526,6 +555,34 @@ const MyBookingsPage = () => {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* Chat Window */}
+        {chatOpen && chatBooking && (
+          <Box
+            sx={{
+              position: 'fixed',
+              bottom: 20,
+              right: 20,
+              zIndex: 1300,
+              boxShadow: 6,
+              borderRadius: 2,
+              overflow: 'hidden'
+            }}
+          >
+            <ChatWindow
+              bookingId={chatBooking._id}
+              receiverId={chatBooking.rideId?.providerId?._id || chatBooking.rideId?.providerId}
+              receiverName={chatBooking.rideId?.providerId?.name || 'Admin'}
+              receiverImage={chatBooking.rideId?.providerId?.profileImage}
+              onClose={() => {
+                setChatOpen(false);
+                setChatBooking(null);
+              }}
+              userRole="student"
+              canChat={chatCanChat}
+            />
+          </Box>
+        )}
       </Box>
     </Container>
   );

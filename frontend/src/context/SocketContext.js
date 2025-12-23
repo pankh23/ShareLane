@@ -144,6 +144,18 @@ export const SocketProvider = ({ children }) => {
     }
   };
 
+  const onNewMessage = (callback) => {
+    if (socket) {
+      socket.on('new_message', callback);
+    }
+  };
+
+  const onNewNotification = (callback) => {
+    if (socket) {
+      socket.on('new_notification', callback);
+    }
+  };
+
   // Emit functions
   const emitBookingCreated = (data) => {
     if (socket) {
@@ -203,6 +215,8 @@ export const SocketProvider = ({ children }) => {
     onBookingStatusUpdated,
     onBookingCompleted,
     onBookingRemoved,
+    onNewMessage,
+    onNewNotification,
     emitBookingCreated,
     emitBookingConfirmed,
     emitBookingCancelled,

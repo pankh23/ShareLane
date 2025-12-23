@@ -67,8 +67,8 @@ export const bookingsAPI = {
 
 // Payments API
 export const paymentsAPI = {
-  createPaymentIntent: (bookingId) => api.post('/payments/create-intent', { bookingId }),
-  confirmPayment: (paymentIntentId) => api.post('/payments/confirm', { paymentIntentId }),
+  createOrder: (rideId, seatsBooked) => api.post('/payments/create-order', { rideId, seatsBooked }),
+  verifyPayment: (paymentData) => api.post('/payments/verify', paymentData),
   processRefund: (bookingId, reason) => api.post('/payments/refund', { bookingId, reason }),
   getPaymentHistory: (params) => api.get('/payments/history', { params }),
 };
@@ -88,6 +88,14 @@ export const notificationsAPI = {
   markAsRead: (id) => api.put(`/notifications/${id}/read`),
   markAllAsRead: () => api.post('/notifications/mark-all-read'),
   deleteNotification: (id) => api.delete(`/notifications/${id}`),
+};
+
+// Chat API
+export const chatAPI = {
+  sendMessage: (messageData) => api.post('/chat/send', messageData),
+  getMessages: (bookingId) => api.get(`/chat/booking/${bookingId}`),
+  getConversations: () => api.get('/chat/conversations'),
+  getMyConversations: () => api.get('/chat/my-conversations'),
 };
 
 export default api;

@@ -148,7 +148,8 @@ const sendBookingConfirmationEmail = async (bookingData) => {
       providerPhone,
       specialRequests,
       pickupNotes,
-      bookedAt
+      bookedAt,
+      isConfirmed = false // Flag to indicate if booking is confirmed by admin
     } = bookingData;
 
     // Format date
@@ -171,7 +172,9 @@ const sendBookingConfirmationEmail = async (bookingData) => {
     const mailOptions = {
       from: `"ShareLane" <${process.env.EMAIL_USER}>`,
       to: studentEmail,
-      subject: `Booking Confirmation - ${bookingReference} | ShareLane`,
+      subject: isConfirmed 
+        ? `Booking Confirmed - ${bookingReference} | ShareLane`
+        : `Payment Received - Booking Pending Confirmation - ${bookingReference} | ShareLane`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -187,7 +190,16 @@ const sendBookingConfirmationEmail = async (bookingData) => {
           </div>
           <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e0e0e0;">
             <h2 style="color: #667eea; margin-top: 0;">Hello ${studentName},</h2>
-            <p>Your ride booking has been confirmed! We're excited to have you join us on this journey.</p>
+            ${isConfirmed 
+              ? `<p>Great news! Your ride booking has been <strong>confirmed</strong> by the ride provider! We're excited to have you join us on this journey.</p>
+                 <div style="background: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745;">
+                   <p style="color: #155724; margin: 0; font-weight: bold;">✅ Booking Confirmed - You're All Set!</p>
+                 </div>`
+              : `<p>Your payment has been received successfully! Your ride booking is now pending confirmation from the ride provider.</p>
+                 <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                   <p style="color: #856404; margin: 0; font-weight: bold;">✅ Payment Received - Waiting for Admin Confirmation</p>
+                 </div>`
+            }
             
             <div style="background: white; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #667eea;">
               <h3 style="color: #667eea; margin-top: 0;">Booking Reference</h3>
@@ -219,7 +231,7 @@ const sendBookingConfirmationEmail = async (bookingData) => {
                 </tr>
                 <tr>
                   <td style="padding: 10px 0; color: #666;"><strong>Total Price:</strong></td>
-                  <td style="padding: 10px 0; color: #333; font-weight: bold; font-size: 18px;">$${totalPrice.toFixed(2)}</td>
+                  <td style="padding: 10px 0; color: #333; font-weight: bold; font-size: 18px;">₹${totalPrice.toFixed(2)}</td>
                 </tr>
               </table>
             </div>
@@ -262,7 +274,10 @@ const sendBookingConfirmationEmail = async (bookingData) => {
                 <li>Please arrive at the pickup location 5-10 minutes before the scheduled time</li>
                 <li>Keep your booking reference (${bookingReference}) handy for reference</li>
                 <li>Contact the driver directly if you have any questions or need to make changes</li>
-                <li>Your booking status is currently <strong>Pending</strong> and will be confirmed by the driver</li>
+                ${isConfirmed 
+                  ? `<li>Your booking has been <strong>Confirmed</strong> by the driver - you're all set for your ride!</li>`
+                  : `<li>Your booking status is currently <strong>Pending</strong> and will be confirmed by the driver</li>`
+                }
               </ul>
             </div>
 
@@ -280,7 +295,14 @@ const sendBookingConfirmationEmail = async (bookingData) => {
       text: `
         Hello ${studentName},
         
-        Your ride booking has been confirmed! We're excited to have you join us on this journey.
+        ${isConfirmed 
+          ? `Great news! Your ride booking has been confirmed by the ride provider! We're excited to have you join us on this journey.
+        
+        ✅ Booking Confirmed - You're All Set!`
+          : `Your payment has been received successfully! Your ride booking is now pending confirmation from the ride provider.
+        
+        ✅ Payment Received - Waiting for Admin Confirmation`
+        }
         
         BOOKING REFERENCE: ${bookingReference}
         
@@ -290,7 +312,7 @@ const sendBookingConfirmationEmail = async (bookingData) => {
         - Date: ${formattedDate}
         - Time: ${rideTime}
         - Seats Booked: ${seatsBooked} seat${seatsBooked > 1 ? 's' : ''}
-        - Total Price: $${totalPrice.toFixed(2)}
+        - Total Price: ₹${totalPrice.toFixed(2)}
         
         DRIVER INFORMATION:
         - Name: ${providerName}
@@ -304,7 +326,10 @@ const sendBookingConfirmationEmail = async (bookingData) => {
         - Please arrive at the pickup location 5-10 minutes before the scheduled time
         - Keep your booking reference (${bookingReference}) handy for reference
         - Contact the driver directly if you have any questions or need to make changes
-        - Your booking status is currently Pending and will be confirmed by the driver
+        ${isConfirmed 
+          ? '- Your booking has been Confirmed by the driver - you\'re all set for your ride!'
+          : '- Your booking status is currently Pending and will be confirmed by the driver'
+        }
         
         Booking created on: ${formattedBookingTime}
         
@@ -417,7 +442,7 @@ const sendBookingRejectionEmail = async (bookingData) => {
     const mailOptions = {
       from: `"ShareLane" <${process.env.EMAIL_USER}>`,
       to: studentEmail,
-      subject: `Booking Rejected - ${bookingReference} | ShareLane`,
+      subject: `Booking Rejected/Cancelled - ${bookingReference} | ShareLane`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -465,7 +490,7 @@ const sendBookingRejectionEmail = async (bookingData) => {
                 </tr>
                 <tr>
                   <td style="padding: 10px 0; color: #666;"><strong>Total Price:</strong></td>
-                  <td style="padding: 10px 0; color: #333; font-weight: bold;">$${totalPrice.toFixed(2)}</td>
+                  <td style="padding: 10px 0; color: #333; font-weight: bold;">₹${totalPrice.toFixed(2)}</td>
                 </tr>
               </table>
             </div>
@@ -526,7 +551,7 @@ const sendBookingRejectionEmail = async (bookingData) => {
         - Date: ${formattedDate}
         - Time: ${rideTime}
         - Seats Booked: ${seatsBooked} seat${seatsBooked > 1 ? 's' : ''}
-        - Total Price: $${totalPrice.toFixed(2)}
+        - Total Price: ₹${totalPrice.toFixed(2)}
         
         RIDE PROVIDER INFORMATION:
         - Name: ${providerName}

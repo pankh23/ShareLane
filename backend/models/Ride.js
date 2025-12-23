@@ -44,6 +44,11 @@ const rideSchema = new mongoose.Schema({
     required: [true, 'Price per seat is required'],
     min: [0, 'Price cannot be negative']
   },
+  bookingAmount: {
+    type: Number,
+    required: false, // Optional - kept for backward compatibility
+    min: [0, 'Booking amount cannot be negative']
+  },
   description: {
     type: String,
     trim: true,

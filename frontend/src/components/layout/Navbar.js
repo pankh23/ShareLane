@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -36,7 +36,7 @@ const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
   
   const { user, logout } = useAuth();
-  const { isConnected } = useSocket();
+  const { isConnected, socket, onNewNotification } = useSocket();
   const { theme, toggleTheme } = useAppTheme();
   
   const [anchorEl, setAnchorEl] = useState(null);
@@ -90,6 +90,49 @@ const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
       console.error('Failed to mark notification as read:', error);
     }
   };
+
+  // Listen for new notifications via Socket.IO
+  useEffect(() => {
+    if (socket && isConnected && onNewNotification) {
+      const handleNewNotification = (data) => {
+        if (data.notification) {
+          // Add notification to the list
+          setNotifications(prev => [data.notification, ...prev]);
+          // Increment unread count
+          setUnreadCount(prev => prev + 1);
+          // Show toast notification
+          toast.info(data.notification.message, {
+            onClick: () => {
+              if (data.notification.actionUrl) {
+                navigate(data.notification.actionUrl);
+              }
+            }
+          });
+        }
+      };
+
+      onNewNotification(handleNewNotification);
+
+      return () => {
+        if (socket) {
+          socket.off('new_notification', handleNewNotification);
+        }
+      };
+    }
+  }, [socket, isConnected, onNewNotification, navigate]);
+
+  // Fetch initial notification count
+  useEffect(() => {
+    if (user) {
+      fetchNotifications();
+      // Refresh notification count periodically
+      const interval = setInterval(() => {
+        fetchNotifications();
+      }, 30000); // Every 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   // Handle logout
   const handleLogout = () => {
@@ -282,12 +325,19 @@ const Navbar = ({ onToggleSidebar, sidebarOpen }) => {
                     if (!notification.isRead) {
                       markAsRead(notification._id);
                     }
+                    if (notification.actionUrl) {
+                      navigate(notification.actionUrl);
+                    }
                     handleNotificationMenuClose();
                   }}
                   sx={{
                     backgroundColor: notification.isRead ? 'transparent' : 'rgba(59, 130, 246, 0.1)',
                     borderBottom: 1,
-                    borderColor: 'divider'
+                    borderColor: 'divider',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      backgroundColor: notification.isRead ? 'action.hover' : 'rgba(59, 130, 246, 0.2)'
+                    }
                   }}
                 >
                   <Box>

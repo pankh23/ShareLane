@@ -20,6 +20,7 @@ import StaffDashboard from './pages/staff/StaffDashboard';
 import StudentDashboard from './pages/student/StudentDashboard';
 import CreateRidePage from './pages/staff/CreateRidePage';
 import MyRidesPage from './pages/staff/MyRidesPage';
+import ChatPage from './pages/staff/ChatPage';
 import RideDetailsPage from './pages/RideDetailsPage';
 import SearchRidesPage from './pages/student/SearchRidesPage';
 import MyBookingsPage from './pages/student/MyBookingsPage';
@@ -222,6 +223,16 @@ const AppRoutes = () => {
           <ProtectedRoute allowedRoles={['staff']}>
             <AppLayout>
               <CreateRidePage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/staff/chat"
+        element={
+          <ProtectedRoute allowedRoles={['staff']}>
+            <AppLayout>
+              <ChatPage />
             </AppLayout>
           </ProtectedRoute>
         }

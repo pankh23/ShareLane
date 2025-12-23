@@ -16,6 +16,7 @@ const bookingRoutes = require('./routes/bookings');
 const paymentRoutes = require('./routes/payments');
 const reviewRoutes = require('./routes/reviews');
 const notificationRoutes = require('./routes/notifications');
+const chatRoutes = require('./routes/chat');
 
 // Initialize Express app
 const app = express();
@@ -92,6 +93,7 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
@@ -131,6 +133,17 @@ io.on('connection', (socket) => {
   // Handle review events
   socket.on('review_created', (data) => {
     socket.to(`user_${data.revieweeId}`).emit('review_created', data);
+  });
+
+  // Handle chat events
+  socket.on('join_chat', (bookingId) => {
+    socket.join(`chat_${bookingId}`);
+    console.log(`User joined chat room: chat_${bookingId}`);
+  });
+
+  socket.on('leave_chat', (bookingId) => {
+    socket.leave(`chat_${bookingId}`);
+    console.log(`User left chat room: chat_${bookingId}`);
   });
 
   socket.on('disconnect', () => {

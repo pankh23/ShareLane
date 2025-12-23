@@ -25,7 +25,8 @@ import {
   Person as ProfileIcon,
   TrendingUp as TrendingUpIcon,
   History as HistoryIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Chat as ChatIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 
@@ -61,6 +62,12 @@ const Sidebar = ({ open, onClose }) => {
           path: '/staff/rides/create',
           icon: <AddIcon />,
           description: 'Add new ride'
+        },
+        {
+          label: 'Chat',
+          path: '/staff/chat',
+          icon: <ChatIcon />,
+          description: 'Chat with students'
         },
         {
           label: 'Earnings',

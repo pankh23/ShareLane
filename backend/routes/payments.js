@@ -1,23 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const {
-  createPaymentIntent,
-  confirmPayment,
+  createOrder,
+  verifyPayment,
   processRefund,
   getPaymentHistory,
   handleWebhook
 } = require('../controllers/paymentController');
 const { authenticate, authorize } = require('../middleware/auth');
 
-// @route   POST /api/payments/create-intent
-// @desc    Create Stripe payment intent
+// @route   POST /api/payments/create-order
+// @desc    Create Razorpay order
 // @access  Private (Student only)
-router.post('/create-intent', authenticate, authorize('student'), createPaymentIntent);
+router.post('/create-order', authenticate, authorize('student'), createOrder);
 
-// @route   POST /api/payments/confirm
-// @desc    Confirm payment
+// @route   POST /api/payments/verify
+// @desc    Verify payment
 // @access  Private
-router.post('/confirm', authenticate, confirmPayment);
+router.post('/verify', authenticate, verifyPayment);
 
 // @route   POST /api/payments/refund
 // @desc    Process refund
@@ -30,8 +30,8 @@ router.post('/refund', authenticate, authorize('staff'), processRefund);
 router.get('/history', authenticate, getPaymentHistory);
 
 // @route   POST /api/payments/webhook
-// @desc    Stripe webhook handler
+// @desc    Razorpay webhook handler
 // @access  Public
-router.post('/webhook', express.raw({ type: 'application/json' }), handleWebhook);
+router.post('/webhook', express.json(), handleWebhook);
 
 module.exports = router;

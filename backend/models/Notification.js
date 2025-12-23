@@ -20,7 +20,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['booking', 'payment', 'ride_update', 'review', 'system', 'cancellation'],
+    enum: ['booking', 'payment', 'ride_update', 'review', 'system', 'cancellation', 'chat'],
     required: [true, 'Notification type is required']
   },
   isRead: {
@@ -30,14 +30,14 @@ const notificationSchema = new mongoose.Schema({
   relatedId: {
     type: mongoose.Schema.Types.ObjectId,
     required: function() {
-      return ['booking', 'payment', 'ride_update', 'review'].includes(this.type);
+      return ['booking', 'payment', 'ride_update', 'review', 'chat'].includes(this.type);
     }
   },
   relatedType: {
     type: String,
-    enum: ['ride', 'booking', 'review', 'payment'],
+    enum: ['ride', 'booking', 'review', 'payment', 'message'],
     required: function() {
-      return ['booking', 'payment', 'ride_update', 'review'].includes(this.type);
+      return ['booking', 'payment', 'ride_update', 'review', 'chat'].includes(this.type);
     }
   },
   priority: {

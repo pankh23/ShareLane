@@ -1,120 +1,249 @@
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const Razorpay = require('razorpay');
 const Booking = require('../models/Booking');
 const Ride = require('../models/Ride');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const { sendBookingConfirmationEmail } = require('../utils/emailService');
+const crypto = require('crypto');
 
-// @desc    Create payment intent
-// @route   POST /api/payments/create-intent
+// Initialize Razorpay
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET
+});
+
+// @desc    Create Razorpay order
+// @route   POST /api/payments/create-order
 // @access  Private (Student only)
-const createPaymentIntent = async (req, res) => {
+const createOrder = async (req, res) => {
   try {
-    const { bookingId } = req.body;
+    const { rideId, seatsBooked } = req.body;
 
-    const booking = await Booking.findById(bookingId)
-      .populate('rideId', 'pickupLocation destination date time pricePerSeat')
-      .populate('studentId', 'name email');
-
-    if (!booking) {
+    // Find the ride
+    const ride = await Ride.findById(rideId);
+    if (!ride) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found'
+        message: 'Ride not found'
       });
     }
 
-    // Check if user owns the booking
-    if (booking.studentId._id.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to pay for this booking'
-      });
-    }
-
-    // Check if booking is in pending status
-    if (booking.status !== 'pending') {
+    // Check if ride is active
+    if (ride.status !== 'active') {
       return res.status(400).json({
         success: false,
-        message: 'Booking is not in pending status'
+        message: 'Ride is not available for booking'
       });
     }
 
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(booking.totalPrice * 100), // Convert to cents
-      currency: 'usd',
-      metadata: {
-        bookingId: booking._id.toString(),
-        studentId: booking.studentId._id.toString(),
-        rideId: booking.rideId._id.toString()
-      },
-      description: `Ride booking: ${booking.rideId.pickupLocation} to ${booking.rideId.destination}`,
-      automatic_payment_methods: {
-        enabled: true,
-      },
-    });
+    // Check if enough seats are available
+    if (ride.availableSeats < seatsBooked) {
+      return res.status(400).json({
+        success: false,
+        message: 'Not enough seats available'
+      });
+    }
 
-    // Update booking with payment intent ID
-    booking.paymentIntentId = paymentIntent.id;
-    await booking.save();
+    // Calculate total amount (pricePerSeat * seatsBooked)
+    const amount = ride.pricePerSeat * seatsBooked;
+
+    if (!ride.pricePerSeat || ride.pricePerSeat <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid price per seat. Please contact support.'
+      });
+    }
+
+    if (!seatsBooked || seatsBooked <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid number of seats.'
+      });
+    }
+
+    // Create Razorpay order
+    const options = {
+      amount: Math.round(amount * 100), // Convert to paise (Razorpay uses paise)
+      currency: 'INR',
+      receipt: `booking_${Date.now()}`,
+      notes: {
+        rideId: ride._id.toString(),
+        studentId: req.user._id.toString(),
+        seatsBooked: seatsBooked.toString(),
+        pickupLocation: ride.pickupLocation,
+        destination: ride.destination
+      }
+    };
+
+    const order = await razorpay.orders.create(options);
 
     res.json({
       success: true,
       data: {
-        clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.id,
-        amount: booking.totalPrice
+        orderId: order.id,
+        amount: amount,
+        currency: order.currency,
+        keyId: process.env.RAZORPAY_KEY_ID
       }
     });
   } catch (error) {
-    console.error('Create payment intent error:', error);
+    console.error('Create order error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while creating payment intent'
+      message: 'Server error while creating order'
     });
   }
 };
 
-// @desc    Confirm payment
-// @route   POST /api/payments/confirm
+// @desc    Verify and confirm payment
+// @route   POST /api/payments/verify
 // @access  Private
-const confirmPayment = async (req, res) => {
+const verifyPayment = async (req, res) => {
   try {
-    const { paymentIntentId } = req.body;
+    const { orderId, paymentId, signature, rideId, seatsBooked, specialRequests, contactPhone, pickupNotes } = req.body;
 
-    // Retrieve payment intent from Stripe
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    // Verify payment signature
+    const text = `${orderId}|${paymentId}`;
+    const generatedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(text)
+      .digest('hex');
 
-    if (paymentIntent.status !== 'succeeded') {
+    if (generatedSignature !== signature) {
       return res.status(400).json({
         success: false,
-        message: 'Payment not successful'
+        message: 'Payment verification failed'
       });
     }
 
-    // Find booking by payment intent ID
-    const booking = await Booking.findOne({ paymentIntentId })
-      .populate('rideId', 'providerId pickupLocation destination')
-      .populate('studentId', 'name email');
-
-    if (!booking) {
+    // Find the ride
+    const ride = await Ride.findById(rideId);
+    if (!ride) {
       return res.status(404).json({
         success: false,
-        message: 'Booking not found'
+        message: 'Ride not found'
       });
     }
 
-    // Update booking status
-    booking.paymentStatus = 'paid';
-    booking.status = 'confirmed';
-    booking.confirmedAt = new Date();
+    // Check if ride is active
+    if (ride.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Ride is not available for booking'
+      });
+    }
+
+    // Check if enough seats are available
+    if (ride.availableSeats < seatsBooked) {
+      return res.status(400).json({
+        success: false,
+        message: 'Not enough seats available'
+      });
+    }
+
+    // Check if student already has a booking for this ride
+    const existingBooking = await Booking.findOne({
+      rideId,
+      studentId: req.user._id,
+      status: { $in: ['pending', 'confirmed'] }
+    });
+
+    if (existingBooking) {
+      return res.status(400).json({
+        success: false,
+        message: 'You already have a booking for this ride'
+      });
+    }
+
+    // Calculate total price (pricePerSeat * seatsBooked)
+    const totalPrice = ride.pricePerSeat * seatsBooked;
+    
+    if (!ride.pricePerSeat || ride.pricePerSeat <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid price per seat. Please contact support.'
+      });
+    }
+
+    if (!seatsBooked || seatsBooked <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid number of seats.'
+      });
+    }
+
+    // Create booking with pending status (admin needs to confirm)
+    const booking = new Booking({
+      rideId,
+      studentId: req.user._id,
+      seatsBooked,
+      totalPrice,
+      specialRequests,
+      contactPhone,
+      pickupNotes,
+      paymentStatus: 'paid',
+      status: 'pending', // Set to pending - admin will confirm or reject
+      paymentIntentId: paymentId
+    });
+
     await booking.save();
+
+    // Update available seats
+    ride.availableSeats -= seatsBooked;
+    await ride.save();
+
+    // Populate booking details
+    await booking.populate([
+      { 
+        path: 'rideId', 
+        select: 'pickupLocation destination date time bookingAmount',
+        populate: {
+          path: 'providerId',
+          select: 'name email phone'
+        }
+      },
+      { path: 'studentId', select: 'name email phone' }
+    ]);
+
+    // Send booking confirmation email to student (payment received, waiting for admin confirmation)
+    try {
+      const provider = booking.rideId.providerId;
+      const student = booking.studentId;
+      const ride = booking.rideId;
+
+      console.log('Attempting to send booking confirmation email to:', student.email);
+      
+      await sendBookingConfirmationEmail({
+        studentEmail: student.email,
+        studentName: student.name,
+        bookingReference: booking.bookingReference,
+        seatsBooked: booking.seatsBooked,
+        totalPrice: booking.totalPrice,
+        pickupLocation: ride.pickupLocation,
+        destination: ride.destination,
+        rideDate: ride.date,
+        rideTime: ride.time,
+        providerName: provider.name,
+        providerEmail: provider.email,
+        providerPhone: provider.phone,
+        specialRequests: booking.specialRequests,
+        pickupNotes: booking.pickupNotes,
+        bookedAt: booking.bookedAt
+      });
+      console.log('✅ Booking confirmation email sent successfully to:', student.email);
+    } catch (emailError) {
+      // Log detailed error but don't fail the booking creation
+      console.error('❌ Failed to send booking confirmation email:', emailError.message);
+      console.error('Error stack:', emailError.stack);
+      // Continue with the booking creation even if email fails
+    }
 
     // Create notification for staff
     await Notification.create({
-      userId: booking.rideId.providerId,
-      title: 'Payment Received',
-      message: `Payment received for booking to ${booking.rideId.destination}`,
-      type: 'payment',
+      userId: ride.providerId,
+      title: 'New Booking Received',
+      message: `You have a new booking for ${seatsBooked} seat(s) on your ride to ${ride.destination}`,
+      type: 'booking',
       relatedId: booking._id,
       relatedType: 'booking',
       priority: 'high'
@@ -122,25 +251,48 @@ const confirmPayment = async (req, res) => {
 
     // Create notification for student
     await Notification.create({
-      userId: booking.studentId._id,
+      userId: req.user._id,
       title: 'Payment Confirmed',
-      message: 'Your payment has been confirmed and booking is now active',
+      message: 'Your payment has been confirmed. Booking is pending admin confirmation.',
       type: 'payment',
       relatedId: booking._id,
       relatedType: 'booking',
       priority: 'high'
     });
 
+    // Emit real-time notification to staff
+    const io = req.app.get('io');
+    const providerId = ride.providerId._id || ride.providerId;
+    const roomName = `user_${providerId}`;
+    
+    io.to(roomName).emit('new_booking', {
+      bookingId: booking._id,
+      studentName: booking.studentId.name,
+      studentEmail: booking.studentId.email,
+      studentPhone: booking.studentId.phone,
+      seatsBooked: booking.seatsBooked,
+      totalPrice: booking.totalPrice,
+      specialRequests: booking.specialRequests,
+      pickupNotes: booking.pickupNotes,
+      rideDetails: {
+        pickupLocation: ride.pickupLocation,
+        destination: ride.destination,
+        date: ride.date,
+        time: ride.time
+      },
+      message: `New booking from ${booking.studentId.name} for ${seatsBooked} seat(s)`
+    });
+
     res.json({
       success: true,
-      message: 'Payment confirmed successfully',
+      message: 'Payment verified and booking confirmed successfully',
       data: { booking }
     });
   } catch (error) {
-    console.error('Confirm payment error:', error);
+    console.error('Verify payment error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while confirming payment'
+      message: 'Server error while verifying payment'
     });
   }
 };
@@ -179,11 +331,10 @@ const processRefund = async (req, res) => {
       });
     }
 
-    // Process refund with Stripe
-    const refund = await stripe.refunds.create({
-      payment_intent: booking.paymentIntentId,
-      reason: reason || 'requested_by_customer',
-      metadata: {
+    // Process refund with Razorpay
+    const refund = await razorpay.payments.refund(booking.paymentIntentId, {
+      amount: Math.round(booking.totalPrice * 100), // Convert to paise
+      notes: {
         bookingId: booking._id.toString(),
         reason: reason || 'No reason provided'
       }
@@ -260,42 +411,56 @@ const getPaymentHistory = async (req, res) => {
   }
 };
 
-// @desc    Stripe webhook handler
+// @desc    Razorpay webhook handler
 // @route   POST /api/payments/webhook
-// @access  Public (Stripe webhook)
+// @access  Public (Razorpay webhook)
 const handleWebhook = async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  let event;
-
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+    const webhookSignature = req.headers['x-razorpay-signature'];
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-  // Handle the event
-  switch (event.type) {
-    case 'payment_intent.succeeded':
-      const paymentIntent = event.data.object;
-      console.log('PaymentIntent succeeded:', paymentIntent.id);
-      // Handle successful payment
-      break;
-    case 'payment_intent.payment_failed':
-      const failedPayment = event.data.object;
-      console.log('PaymentIntent failed:', failedPayment.id);
-      // Handle failed payment
-      break;
-    default:
-      console.log(`Unhandled event type ${event.type}`);
-  }
+    // Verify webhook signature (only if webhook secret is configured)
+    if (webhookSecret && webhookSecret !== 'your_razorpay_webhook_secret') {
+      const text = JSON.stringify(req.body);
+      const generatedSignature = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(text)
+        .digest('hex');
 
-  res.json({ received: true });
+      if (generatedSignature !== webhookSignature) {
+        console.error('Webhook signature verification failed');
+        return res.status(400).send('Webhook Error: Invalid signature');
+      }
+    } else {
+      console.warn('Webhook secret not configured - skipping signature verification (not recommended for production)');
+    }
+
+    const event = req.body;
+
+    // Handle the event
+    switch (event.event) {
+      case 'payment.captured':
+        console.log('Payment captured:', event.payload.payment.entity.id);
+        // Payment was successfully captured
+        break;
+      case 'payment.failed':
+        console.log('Payment failed:', event.payload.payment.entity.id);
+        // Handle failed payment
+        break;
+      default:
+        console.log(`Unhandled event type ${event.event}`);
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
 };
 
 module.exports = {
-  createPaymentIntent,
-  confirmPayment,
+  createOrder,
+  verifyPayment,
   processRefund,
   getPaymentHistory,
   handleWebhook
