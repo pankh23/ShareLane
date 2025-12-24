@@ -99,77 +99,143 @@ const RideDetailsPage = () => {
     try {
       setBookingLoading(true);
       
+      // Validate booking data
+      if (!bookingData.seats || bookingData.seats <= 0) {
+        toast.error('Please select at least one seat');
+        setBookingLoading(false);
+        return;
+      }
+
+      if (!id) {
+        toast.error('Invalid ride ID');
+        setBookingLoading(false);
+        return;
+      }
+
+      console.log('Creating Razorpay order for ride:', id, 'seats:', bookingData.seats);
+      
       // Create Razorpay order
       const orderResponse = await paymentsAPI.createOrder(id, bookingData.seats);
+      
+      if (!orderResponse.data || !orderResponse.data.success) {
+        throw new Error(orderResponse.data?.message || 'Failed to create payment order');
+      }
+
       const { orderId, amount, keyId } = orderResponse.data.data;
 
-      // Load Razorpay script
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => {
-        const options = {
-          key: keyId,
-          amount: Math.round(amount * 100), // Convert to paise
-          currency: 'INR',
-          name: 'ShareLane',
-          description: `Ride booking: ${ride.pickupLocation} to ${ride.destination}`,
-          order_id: orderId,
-          handler: async function (response) {
-            try {
-              // Verify payment
-              await paymentsAPI.verifyPayment({
-                orderId: response.razorpay_order_id,
-                paymentId: response.razorpay_payment_id,
-                signature: response.razorpay_signature,
-                rideId: id,
-                seatsBooked: bookingData.seats,
-                specialRequests: bookingData.specialRequests || undefined,
-                contactPhone: bookingData.contactPhone || undefined,
-                pickupNotes: bookingData.pickupNotes || undefined
-              });
+      if (!orderId || !keyId) {
+        throw new Error('Invalid payment configuration. Please contact support.');
+      }
 
-              toast.success('Payment successful! Ride booked successfully!');
-              setBookingDialog(false);
-              setBookingData({ seats: 1, specialRequests: '', contactPhone: '', pickupNotes: '' });
-              
-              // Refresh ride details to update available seats
-              fetchRideDetails();
-            } catch (error) {
-              const message = error.response?.data?.message || 'Payment verification failed';
-              toast.error(message);
-            } finally {
-              setBookingLoading(false);
-            }
-          },
-          prefill: {
-            name: user?.name || '',
-            email: user?.email || '',
-            contact: user?.phone || ''
-          },
-          theme: {
-            color: '#1976d2'
-          },
-          modal: {
-            ondismiss: function() {
-              setBookingLoading(false);
-            }
+      console.log('Order created successfully:', { orderId, amount, keyId });
+
+      // Load Razorpay script (check if already loaded)
+      const loadRazorpayScript = () => {
+        return new Promise((resolve, reject) => {
+          // Check if script is already loaded
+          if (window.Razorpay) {
+            console.log('Razorpay script already loaded');
+            resolve();
+            return;
           }
-        };
 
-        const razorpay = new window.Razorpay(options);
-        razorpay.on('payment.failed', function (response) {
-          toast.error('Payment failed. Please try again.');
-          setBookingLoading(false);
+          // Check if script tag already exists
+          const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+          if (existingScript) {
+            existingScript.addEventListener('load', () => resolve());
+            existingScript.addEventListener('error', () => reject(new Error('Failed to load Razorpay script')));
+            return;
+          }
+
+          // Create and load script
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.async = true;
+          script.onload = () => {
+            console.log('Razorpay script loaded successfully');
+            resolve();
+          };
+          script.onerror = () => {
+            console.error('Failed to load Razorpay script');
+            reject(new Error('Failed to load payment gateway. Please check your internet connection.'));
+          };
+          document.body.appendChild(script);
         });
-        razorpay.open();
       };
-      script.onerror = () => {
-        toast.error('Failed to load payment gateway');
+
+      // Load script and then open payment
+      await loadRazorpayScript();
+
+      if (!window.Razorpay) {
+        throw new Error('Razorpay payment gateway is not available');
+      }
+
+      const options = {
+        key: keyId,
+        amount: Math.round(amount * 100), // Convert to paise
+        currency: 'INR',
+        name: 'ShareLane',
+        description: `Ride booking: ${ride.pickupLocation} to ${ride.destination}`,
+        order_id: orderId,
+        handler: async function (response) {
+          try {
+            console.log('Payment successful, verifying...', response);
+            
+            // Verify payment
+            await paymentsAPI.verifyPayment({
+              orderId: response.razorpay_order_id,
+              paymentId: response.razorpay_payment_id,
+              signature: response.razorpay_signature,
+              rideId: id,
+              seatsBooked: bookingData.seats,
+              specialRequests: bookingData.specialRequests || undefined,
+              contactPhone: bookingData.contactPhone || undefined,
+              pickupNotes: bookingData.pickupNotes || undefined
+            });
+
+            toast.success('Payment successful! Ride booked successfully!');
+            setBookingDialog(false);
+            setBookingData({ seats: 1, specialRequests: '', contactPhone: '', pickupNotes: '' });
+            
+            // Refresh ride details to update available seats
+            fetchRideDetails();
+          } catch (error) {
+            console.error('Payment verification error:', error);
+            const message = error.response?.data?.message || error.message || 'Payment verification failed';
+            toast.error(message);
+          } finally {
+            setBookingLoading(false);
+          }
+        },
+        prefill: {
+          name: user?.name || '',
+          email: user?.email || '',
+          contact: user?.phone || ''
+        },
+        theme: {
+          color: '#1976d2'
+        },
+        modal: {
+          ondismiss: function() {
+            console.log('Payment modal dismissed');
+            setBookingLoading(false);
+          }
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      
+      razorpay.on('payment.failed', function (response) {
+        console.error('Payment failed:', response);
+        const errorMessage = response.error?.description || response.error?.reason || 'Payment failed. Please try again.';
+        toast.error(errorMessage);
         setBookingLoading(false);
-      };
-      document.body.appendChild(script);
+      });
+
+      razorpay.open();
     } catch (error) {
-      const message = error.response?.data?.message || 'Failed to initiate payment';
+      console.error('Booking submission error:', error);
+      const message = error.response?.data?.message || error.message || 'Failed to initiate payment';
       toast.error(message);
       setBookingLoading(false);
     }

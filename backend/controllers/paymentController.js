@@ -7,17 +7,51 @@ const { sendBookingConfirmationEmail } = require('../utils/emailService');
 const crypto = require('crypto');
 
 // Initialize Razorpay
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET
-});
+let razorpay;
+try {
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    console.error('⚠️ Razorpay keys are not configured in environment variables');
+  } else {
+    razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET
+    });
+    console.log('✅ Razorpay initialized successfully');
+  }
+} catch (error) {
+  console.error('❌ Failed to initialize Razorpay:', error);
+}
 
 // @desc    Create Razorpay order
 // @route   POST /api/payments/create-order
 // @access  Private (Student only)
 const createOrder = async (req, res) => {
   try {
+    // Check if Razorpay is initialized
+    if (!razorpay) {
+      console.error('Razorpay not initialized - missing environment variables');
+      return res.status(500).json({
+        success: false,
+        message: 'Payment gateway is not configured. Please contact support.'
+      });
+    }
+
     const { rideId, seatsBooked } = req.body;
+
+    // Validate input
+    if (!rideId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ride ID is required'
+      });
+    }
+
+    if (!seatsBooked || seatsBooked <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid number of seats'
+      });
+    }
 
     // Find the ride
     const ride = await Ride.findById(rideId);
@@ -75,7 +109,23 @@ const createOrder = async (req, res) => {
       }
     };
 
+    console.log('Creating Razorpay order with options:', {
+      amount: options.amount,
+      currency: options.currency,
+      receipt: options.receipt
+    });
+
     const order = await razorpay.orders.create(options);
+
+    console.log('Razorpay order created successfully:', order.id);
+
+    if (!process.env.RAZORPAY_KEY_ID) {
+      console.error('⚠️ RAZORPAY_KEY_ID is not set in environment variables');
+      return res.status(500).json({
+        success: false,
+        message: 'Payment gateway configuration error. Please contact support.'
+      });
+    }
 
     res.json({
       success: true,
@@ -88,9 +138,20 @@ const createOrder = async (req, res) => {
     });
   } catch (error) {
     console.error('Create order error:', error);
+    
+    // Handle Razorpay API errors
+    if (error.error) {
+      console.error('Razorpay API error:', error.error);
+      return res.status(400).json({
+        success: false,
+        message: error.error.description || 'Failed to create payment order'
+      });
+    }
+
     res.status(500).json({
       success: false,
-      message: 'Server error while creating order'
+      message: 'Server error while creating order',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -101,6 +162,29 @@ const createOrder = async (req, res) => {
 const verifyPayment = async (req, res) => {
   try {
     const { orderId, paymentId, signature, rideId, seatsBooked, specialRequests, contactPhone, pickupNotes } = req.body;
+
+    // Validate required fields
+    if (!orderId || !paymentId || !signature) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment verification data is incomplete'
+      });
+    }
+
+    if (!rideId || !seatsBooked) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ride ID and seats booked are required'
+      });
+    }
+
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      console.error('RAZORPAY_KEY_SECRET is not configured');
+      return res.status(500).json({
+        success: false,
+        message: 'Payment verification is not configured. Please contact support.'
+      });
+    }
 
     // Verify payment signature
     const text = `${orderId}|${paymentId}`;

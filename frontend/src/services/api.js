@@ -1,8 +1,20 @@
 import axios from 'axios';
 
+// Helper function to ensure base URL ends with /api
+const getBaseURL = () => {
+  const envUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+  // Remove trailing slash if present
+  const cleanUrl = envUrl.replace(/\/$/, '');
+  // If it doesn't end with /api, add it
+  if (!cleanUrl.endsWith('/api')) {
+    return `${cleanUrl}/api`;
+  }
+  return cleanUrl;
+};
+
 // Create axios instance
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5001/api',
+  baseURL: getBaseURL(),
   headers: {
     'Content-Type': 'application/json',
   },

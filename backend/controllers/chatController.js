@@ -209,8 +209,28 @@ const sendMessage = async (req, res) => {
 const getMessages = async (req, res) => {
   try {
     const { bookingId } = req.params;
+    
+    // Validate bookingId
+    if (!bookingId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking ID is required'
+      });
+    }
+    
+    // Validate MongoDB ObjectId format
+    const mongoose = require('mongoose');
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid booking ID format'
+      });
+    }
+    
     const userId = req.user._id;
     const userRole = req.user.role;
+
+    console.log(`[Chat] getMessages called - bookingId: ${bookingId}, userId: ${userId}, role: ${userRole}`);
 
     // Check if chat is allowed
     const chatCheck = await canChat(userId, bookingId, userRole);

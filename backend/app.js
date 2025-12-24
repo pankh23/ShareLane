@@ -22,10 +22,48 @@ const chatRoutes = require('./routes/chat');
 const app = express();
 const server = createServer(app);
 
+// CORS configuration - Define allowed origins first (needed for Socket.IO)
+// Allow multiple origins for development and production
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://share-lane.vercel.app',
+  'https://share-lane-git-main.vercel.app',
+  'https://share-lane-*.vercel.app', // Pattern for Vercel preview deployments
+  process.env.CLIENT_URL,
+  // Support multiple origins from environment variable (comma-separated)
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim()) : [])
+].filter(Boolean); // Remove undefined values
+
+// Log allowed origins on startup
+console.log('🌐 CORS allowed origins:', allowedOrigins);
+
+// Helper function to check if origin is allowed
+const isOriginAllowed = (origin) => {
+  if (!origin) return true; // Allow requests with no origin
+  
+  return allowedOrigins.some(allowedOrigin => {
+    // Handle wildcard patterns (for Vercel preview deployments)
+    if (allowedOrigin.includes('*')) {
+      const pattern = allowedOrigin.replace(/\*/g, '.*');
+      const regex = new RegExp(`^${pattern}$`);
+      return regex.test(origin);
+    }
+    return origin === allowedOrigin;
+  });
+};
+
 // Initialize Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: function (origin, callback) {
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
     methods: ["GET", "POST"]
   }
 });
@@ -33,9 +71,19 @@ const io = new Server(server, {
 // Connect to database
 connectDB();
 
-// CORS configuration - MUST be before other middleware
 const corsOptions = {
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  origin: function (origin, callback) {
+    if (isOriginAllowed(origin)) {
+      callback(null, true);
+    } else {
+      // In development, log the blocked origin for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`⚠️ CORS blocked origin: ${origin}`);
+        console.log('Allowed origins:', allowedOrigins);
+      }
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],

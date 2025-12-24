@@ -34,6 +34,13 @@ const ChatWindow = ({ bookingId, receiverId, receiverName, receiverImage, onClos
   const isDark = theme.palette.mode === 'dark';
 
   useEffect(() => {
+    if (!bookingId) {
+      console.error('ChatWindow: bookingId is required but was not provided');
+      setError('Invalid booking ID');
+      setLoading(false);
+      return;
+    }
+    
     fetchMessages();
 
     // Join chat room
@@ -98,12 +105,36 @@ const ChatWindow = ({ bookingId, receiverId, receiverName, receiverImage, onClos
     try {
       setLoading(true);
       setError('');
+      if (!bookingId) {
+        throw new Error('Booking ID is required');
+      }
+      
+      // Debug logging
+      const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+      const fullUrl = `${apiBaseUrl}/chat/booking/${bookingId}`;
+      console.log('Fetching messages from:', fullUrl);
+      console.log('Booking ID:', bookingId);
+      
       const response = await chatAPI.getMessages(bookingId);
-      setMessages(response.data.data.messages);
+      if (response.data && response.data.data && response.data.data.messages) {
+        setMessages(response.data.data.messages);
+      } else {
+        throw new Error('Invalid response format');
+      }
     } catch (error) {
       console.error('Error fetching messages:', error);
-      setError('Failed to load messages');
-      toast.error('Failed to load messages');
+      console.error('Error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL
+      });
+      const errorMessage = error.response?.data?.message || 
+                          error.message || 
+                          `Failed to load messages (${error.response?.status || 'Unknown error'})`;
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
